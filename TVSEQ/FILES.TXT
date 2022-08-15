@@ -1,0 +1,56 @@
+Files on Sequencer Disk:
+
+The following files are provided on the PC Sequencer Disk for 
+use with the ThingM Stop-Motion Cameral Control.
+
+TVSEQ.EXE	= Sequencer program with graphical user interface
+TVSEQHLP.HLP	= Help file for TVSEQ.EXE
+*.SEQ		= Example Sequencer data file(s)
+
+TESTSEQ.EXE	= Sequencer program with text console interface
+TESTERM.EXE	= Modem Terminal program for testing ThingM
+
+Pascal source code files are provided for the console test programs
+TESTSEQ.EXE and TESTERM.EXE so that the user may be able to make their
+own custom modifications. Some programming experience is recommended,
+and a Turbo Pascal compiler from Borland International is required.
+
+TESTERM.PAS	= main source code for TESTERM.EXE terminal program
+TERMIO.PAS	= source module for terminal emulator
+SIO.PAS		= source module for serial interface
+
+TESTSEQ.PAS	= main source code for TESTSEQ.EXE sequencer file program
+SEQFILE.PAS	= source module for sequencer file saving and loading
+SEQIO.PAS	= source module for sequencer operations
+THINGM.PAS	= source module for ThingM commands
+MCPU.PAS	= source module for motion control communications
+SIO.PAS		= source module for serial interface
+CONIO.PAS	= source module for console user interface
+TIMEX.PAS	= source module for timing routines
+GLOBAL.PAS	= source module for global variables
+SWITCHES.INC	= include file for compiler switches and options
+
+Additional Turbo Pascal libraries from TurboPro are also provided to 
+complete recompilation of the source code. Only binary TPU files 
+(Turbo Pascal Units) are allowed to be redistributed, per license 
+agreement for TurboPro.
+
+TPCRT.TPU	= library unit for TurboPro console extensions
+TPMOUSE.TPU	= library unit for TurboPro mouse interface
+TPINT.TPU	= library unit for TurboPro interrupt routines
+TPINLINE.TPU	= library unit used internally by other TurboPro TPUs
+
+Notices:
+This source code is copyright of Dave Milici, also known as
+Ironic Research Labs and Penguin Associates, San Francisco, CA.
+It is intended only for personal use by designated customers,
+and must not be redistributed or resold to any other party.
+
+mailto:davem77@well.com
+http://www.well.com/~davem77
+
+Turbo Pascal is a product of Borland International, Scotts Valley, CA.
+http://www.borland.com
+
+TurboPro library set is a product of Turbo Power Software, Boulder, CO.
+http://www.turbopower.com

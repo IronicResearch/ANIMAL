@@ -1,0 +1,9 @@
+ThingM Sequencer Script (ver 1.0)
+
+CAM    CTR       1000
+PRJ    CTR       2000
+CAM    FRM         10
+PRJ    FRM          5
+SEQ    ALT          1         1
+PRJ    FRM         20
+

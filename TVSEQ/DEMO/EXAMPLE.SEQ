@@ -1,0 +1,32 @@
+ThingM Sequencer Script
+
+* comments
+* initial setup
+CAM    EXP       0.12
+PRJ    SPD       5.08
+
+* advance camera and clear counters
+CAM    FRM       80
+CAM    CTR       0
+PRJ    CTR       0
+
+* sequence #1 at 1:1 from 0 to 240
+SEQ    ALT       1      1
+PRJ    OUT       240
+CAM    FRM       10
+
+* sequence #2 at 2:1 from 250 to 480
+PRJ    OUT       250
+SEQ    ALT       2      1
+PRJ    OUT       480
+CAM    FRM       10
+
+* sequence #3 step-mode 3:2 from 500 to 960
+PRJ    OUT       500
+SEQ    STP       3      2
+PRJ    OUT       960
+CAM    FRM       10
+PRJ    OUT       1000
+
+
+
