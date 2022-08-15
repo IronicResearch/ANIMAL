@@ -1,0 +1,29 @@
+Notes for TV Animal:
+
+(*) Complete MCPU command set overide.
+
+(*) RGB light source direct control.
+
+(*) Trigger port selectable.
+
+(*) Timing for Delay() must be calibrated per CPU.
+(*) Use video sync for timing delay.
+
+(*) Program number of key frame points via New. (skip Plot)
+
+(*) Save and Load light source program data.
+(*) Prefer separate data file, not linked to time.
+
+(*) Allow MCPU to be disconnected at run-time, without separate Animal.
+
+() Scrollable viewer for color table data. (TVList)
+
+() Notepad desk accessory. (TVMemo)
+
+(*) Update TVAni help file contents.
+
+(*) Allow CTRL-BREAK detection.
+
+(*) Restore "Live-Action" mode for continuous running motors.
+
+() Restore Go-Motion mode for programmable streak sizes.

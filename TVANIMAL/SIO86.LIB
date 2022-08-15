@@ -1,0 +1,140 @@
+
+(* Serial interface input/output routines in 8086 machine code. *)
+
+(* RESETSIO resets the serial interface at COM1. *)
+
+PROCEDURE RESETSIO;
+
+BEGIN
+
+INLINE ( $BA/$F9/$03/       {MOV DX,03F9     ;no interrupts          }
+         $B0/$00/           {MOV AL,00                               }
+         $EE/               {OUT DX,AL                               }
+
+         $42/               {INC DX                                  }
+         $42/               {INC DX                                  }
+         $B0/$83/           {MOV AL,83       ;serial format          }
+         $EE/               {OUT DX,AL                               }
+
+         $4A/               {DEC DX                                  }
+         $4A/               {DEC DX                                  }
+         $4A/               {DEC DX                                  }
+         $B0/$0C/           {MOV AL,0C       ;baud rate              }
+         $EE/               {OUT DX,AL                               }
+         $42/               {INC DX                                  }
+         $B0/$00/           {MOV AL,00                               }
+         $EE/               {OUT DX,AL                               }
+
+         $42/               {INC DX                                  }
+         $42/               {INC DX                                  }
+         $B0/$03/           {MOV AL,03       ;enable transceiver     }
+         $EE/               {OUT DX,AL                               }
+
+         $42/               {INC DX                                  }
+         $B0/$03/           {MOV AL,03       ;handshake              }
+         $EE);              {OUT DX,AL                               }
+
+END;
+
+(* INSIOST gets the receiver status from the serial interface. *)
+
+PROCEDURE INSIOST (VAR STATUS : BOOLEAN);
+
+VAR STBF : CHAR;
+
+BEGIN
+
+INLINE ( $BA/$FD/$03/       {MOV DX,03FD                             }
+         $EC/               {IN AL,DX                                }
+         $24/$01/           {AND AL,01       ;receiver ready?        }
+
+         $BF/STBF/          {MOV DI,STBF     ;buffer address         }
+         $36/$88/$03);      {MOV SS:[BP+DI],AL                       }
+
+IF STBF = CHR (0)
+   THEN STATUS := FALSE
+   ELSE STATUS := TRUE;
+
+END;
+
+(* INSIO inputs a byte from the serial interface. *)
+
+PROCEDURE INSIO (VAR BYTE : CHAR);
+
+VAR CHBF : CHAR;
+
+BEGIN
+
+INLINE ( $BA/$FD/$03/       {MOV DX,03FD                             }
+         $EC/               {IN AL,DX                                }
+         $24/$01/           {AND AL,01       ;receiver ready?        }
+         $74/$FB/           {JZ -0005                                }
+
+         $BA/$F8/$03/       {MOV DX,03F8                             }
+         $EC/               {IN AL,DX        ;input byte             }
+
+         $BF/CHBF/          {MOV DI,CHBF     ;to buffer address      }
+         $36/$88/$03);      {MOV SS:[BP+DI],AL                       }
+
+BYTE := CHBF;
+
+END;
+
+(* OUTSIOST gets the transmitter handshake status from the serial interface. *)
+
+PROCEDURE OUTSIOST (VAR STATUS : BOOLEAN);
+
+VAR STBF : CHAR;
+
+BEGIN
+
+INLINE ( $BA/$FE/$03/       {MOV DX,03FE                             }
+         $EC/               {IN AL,DX                                }
+         $24/$20/           {AND AL,20       ;handshake ready?       }
+
+         $BF/STBF/          {MOV DI,STBF     ;buffer address         }
+         $36/$88/$03);      {MOV SS:[BP+DI],AL                       }
+
+IF STBF = CHR (0)
+   THEN STATUS := FALSE
+   ELSE STATUS := TRUE;
+
+END;
+
+(* OUTSIO outputs a byte to the serial interface. *)
+
+PROCEDURE OUTSIO (VAR BYTE : CHAR);
+
+VAR CHBF : CHAR;
+    ECHO : CHAR;
+
+BEGIN
+
+(* REPEAT *)
+
+CHBF := BYTE;
+
+INLINE ( $BE/CHBF/          {MOV SI,CHBF     ;byte buffer address    }
+         $36/$8A/$1A/       {MOV BL,SS:[BP+SI]                       }
+
+         $BA/$FE/$03/       {MOV DX,03FE                             }
+         $EC/               {IN AL,DX                                }
+         $24/$10/           {AND AL,10       ;handshake ready?       }
+         $74/$FB/           {JZ -0005                                }
+
+         $BA/$FD/$03/       {MOV DX,03FD                             }
+         $EC/               {IN AL,DX                                }
+         $24/$20/           {AND AL,20       ;transmitter ready?     }
+         $74/$FB/           {JZ -0005                                }
+
+         $BA/$F8/$03/       {MOV DX,03F8                             }
+         $8A/$C3/           {MOV AL,BL                               }
+         $EE);              {OUT DX,AL       ;output byte            }
+
+(* INSIO (ECHO);
+
+UNTIL ECHO = BYTE; *)
+
+END;
+
+

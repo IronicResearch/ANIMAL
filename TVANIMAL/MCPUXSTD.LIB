@@ -1,0 +1,261 @@
+
+(* Common core MCPU sub-commands. *)
+(* For use in nested MCPU command block sequences. *)
+(* Uses extended 24-bit step counts. *)
+
+(* DRIVEX drives an MCPU motor according to a step count, direction, and
+(* overiding constant or ramping speed, for immediate operation. *)
+(* For use in nested 'Drive' MCPU command block sequences. *)
+
+PROCEDURE DRIVEX (VAR M : MOTOR_TABLE);
+
+VAR MN : CHAR;
+    COUNT_L : CHAR;
+    COUNT_H : CHAR;
+    COUNT_X : CHAR;
+    RATE_L : CHAR;
+    RATE_H : CHAR;
+
+BEGIN
+
+   OUTCMD ('D');              (* time to Drive... *)
+
+   OUTCMD ('M');              (* Motor # *)
+   MN := CHR (M.MOTORNO);
+   OUTSIO (MN);
+
+   OUTCMD ('N');              (* Number step count *)
+   REALBYTE (M.STEPCNT, COUNT_L, COUNT_H, COUNT_X);
+   OUTSIO (COUNT_L);
+   OUTSIO (COUNT_H);
+
+   OUTCMD ('X');              (* EXtra step count *)
+   OUTSIO (COUNT_X);
+
+   IF NOT M.ACCELST
+
+      THEN BEGIN
+           OUTCMD ('V');           (* Velocity *)
+           INTBYTE (M.SPEED, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);
+           END
+
+      ELSE BEGIN
+           OUTCMD ('A');           (* Acceleration *)
+           INTBYTE (M.LOWSPD, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);        (* Low Speed *)
+
+           INTBYTE (M.HIGHSPD, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);        (* High Speed *)
+
+           INTBYTE (M.RAMPCNT, COUNT_L, COUNT_H);
+           OUTSIO (COUNT_L);
+           OUTSIO (COUNT_H);       (* Ramp Count *)
+
+           INTBYTE (M.RAMPK, COUNT_L, COUNT_H);
+           OUTSIO (COUNT_L);
+           OUTSIO (COUNT_H);       (* Ramping Constant *)
+           END;
+
+
+   IF M.DIR = FWD
+      THEN OUTCMD ('F')       (* Forward direction *)
+      ELSE OUTCMD ('R');      (* Reverse direction *)
+
+END;
+
+(* INITX pre-initializes an MCPU motor for either constant speed
+(* or ramped acceleration/deceleration operation. *)
+(* For use in nested MCPU 'Initialize' command block sequences. *)
+
+PROCEDURE INITX (VAR M : MOTOR_TABLE);
+
+VAR MN : CHAR;
+    COUNT_L : CHAR;
+    COUNT_H : CHAR;
+    RATE_L : CHAR;
+    RATE_H : CHAR;
+
+BEGIN
+
+   OUTCMD ('I');             (* Initialize... *)
+
+   OUTCMD ('M');             (* Motor # *)
+   MN := CHR (M.MOTORNO);
+   OUTSIO (MN);
+
+   IF NOT M.ACCELST
+
+      THEN BEGIN
+           OUTCMD ('V');           (* Velocity *)
+           INTBYTE (M.SPEED, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);
+           END
+
+      ELSE BEGIN
+           OUTCMD ('A');           (* Acceleration *)
+           INTBYTE (M.LOWSPD, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);        (* Low Speed *)
+
+           INTBYTE (M.HIGHSPD, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);        (* High Speed *)
+
+           INTBYTE (M.RAMPCNT, COUNT_L, COUNT_H);
+           OUTSIO (COUNT_L);
+           OUTSIO (COUNT_H);       (* Ramp Count *)
+
+           INTBYTE (M.RAMPK, COUNT_L, COUNT_H);
+           OUTSIO (COUNT_L);
+           OUTSIO (COUNT_H);       (* Ramping Constant *)
+           END;
+
+END;
+
+(* RUNX post-runs a pre-initialized MCPU motor with the minimum stepping
+(* information for synchronously activated motor axes. *)
+(* For use in nested MCPU 'Drive' command block sequences. *)
+
+PROCEDURE RUNX (VAR M : MOTOR_TABLE);
+
+VAR MN : CHAR;
+    BYTE_L : CHAR;
+    BYTE_H : CHAR;
+    BYTE_X : CHAR;
+
+BEGIN
+
+   OUTCMD ('D');        (* 'Drive' *)
+
+   OUTCMD ('M');        (* 'Motor #' *)
+   MN := CHR (M.MOTORNO);
+   OUTSIO (MN);
+
+   OUTCMD ('N');        (* 'Step Count' *)
+   REALBYTE (M.STEPCNT, BYTE_L, BYTE_H, BYTE_X);
+   OUTSIO (BYTE_L);
+   OUTSIO (BYTE_H);
+
+   OUTCMD ('X');
+   OUTSIO (BYTE_X);
+
+   IF M.DIR = FWD       (* 'Fwd/Rev' *)
+      THEN OUTCMD ('F')
+      ELSE OUTCMD ('R');
+
+END;
+
+(* 'KILL MOTOR' stops the specified motor in mid flight. *)
+(* For use in nested MCPU 'Kill' command block sequences. *)
+
+PROCEDURE KILLX (VAR M : MOTOR_TABLE);
+
+VAR MN : CHAR;
+
+BEGIN
+
+   OUTCMD ('K');             (* Kill... *)
+
+   OUTCMD ('M');             (* Motor # *)
+   MN := CHR (M.MOTORNO);
+   OUTSIO (MN);
+
+END;
+
+(* 'ZERO MOTOR' zeroes out an MCPU axis step position. *)
+(* For use in nested MCPU 'Zero' command block sequences. *)
+
+PROCEDURE ZEROX (VAR M : MOTOR_TABLE);
+
+VAR MN : CHAR;
+
+BEGIN
+
+   OUTCMD ('0');             (* Zero... *)
+
+   OUTCMD ('M');             (* Motor # *)
+   MN := CHR (M.MOTORNO);
+   OUTSIO (MN);
+
+END;
+
+(* GETX gets the status and position data from the MCPU, ready or not. *)
+(* Time-out check for input resonse. *)
+
+PROCEDURE GETX (VAR M : MOTOR_TABLE);
+
+VAR MN : CHAR;
+    COUNT_L : CHAR;
+    COUNT_H : CHAR;
+    COUNT_X : CHAR;
+    COUNT : REAL;
+    BYTE : CHAR;
+    STAT : CHAR;
+    SioStatus : boolean;
+
+BEGIN
+
+   if NOT MCPU_Installed                (* why bother ? *)
+      then Exit;
+
+   OUTCMD ('?');                        (* Inquiry *)
+
+   OUTCMD ('M');                        (* Motor # *)
+   MN := CHR (M.MOTORNO);
+   OUTSIO (MN);
+
+   OUTCMD ('S');                        (* get Status byte *)
+   TimeOut_Mcpu (SioStatus);
+   if (SioStatus)
+      then INSIO (STAT);
+
+   M.STAT := STAT;
+   M.ERROR := NOT (SioStatus)
+              OR NOT (STAT IN ['D','M','S','E'])
+              OR (STAT = 'E');          (* Error ? *)
+
+   IF STAT IN ['D','M','S']
+      THEN BEGIN
+           OUTCMD ('L');                (* get Low byte *)
+           INSIO (COUNT_L);
+
+           OUTCMD ('H');                (* get High byte *)
+           INSIO (COUNT_H);
+
+           OUTCMD ('X');                (* get Extra byte *)
+           INSIO (COUNT_X);
+
+           BYTEREAL (COUNT_L, COUNT_H, COUNT_X, COUNT);
+           M.COUNT := COUNT;
+           END;
+END;
+
+(* 'STATUS MOTOR' gets the current status and step count of an MCPU axis. *)
+(* For use in nested MCPU 'Status' command block sequences. *)
+
+(* Includes valid status verification loop with MCPU. *)
+(* Includes MCPU interrogation breakpoint by user. *)
+
+PROCEDURE STATX (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   if NOT MCPU_Installed                (* why bother ? *)
+      then Exit;
+
+   GETX (M);
+
+   IF NOT (M.STAT IN ['D','M','S','E'])
+      THEN REPEAT
+              RESYNC_MCPU;
+              GETX (M);
+           UNTIL (M.STAT IN ['D','M','S','E']) OR (TRUE); (* once is enough *)
+
+   M.ERROR := M.ERROR OR NOT (M.STAT IN ['D','M','S','E']);  (* Error ? *)
+
+END;

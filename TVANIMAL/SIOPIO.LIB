@@ -1,0 +1,277 @@
+
+(* Combined Serial/Parallel Input/Output Communications. *)
+(* MCPU axes 1, 2, 3 use Parallel port interface for Compumotor PC 23. *)
+(* MCPU axes 4, 5, 6, 7 use Serial port interface for Compumotor 2100. *)
+(* Communications default to 'Serial' interface routines for compatibility. *)
+
+(* Serial interface input/output routines in 8086 machine code. *)
+
+(* RESETSIO resets the serial interface at COM1. *)
+
+PROCEDURE ResetSio_86;
+
+BEGIN
+
+INLINE ( $BA/$F9/$03/       {MOV DX,03F9     ;no interrupts          }
+         $B0/$00/           {MOV AL,00                               }
+         $EE/               {OUT DX,AL                               }
+
+         $42/               {INC DX                                  }
+         $42/               {INC DX                                  }
+         $B0/$83/           {MOV AL,83       ;serial format          }
+         $EE/               {OUT DX,AL                               }
+
+         $4A/               {DEC DX                                  }
+         $4A/               {DEC DX                                  }
+         $4A/               {DEC DX                                  }
+         $B0/$0C/           {MOV AL,0C       ;baud rate              }
+         $EE/               {OUT DX,AL                               }
+         $42/               {INC DX                                  }
+         $B0/$00/           {MOV AL,00                               }
+         $EE/               {OUT DX,AL                               }
+
+         $42/               {INC DX                                  }
+         $42/               {INC DX                                  }
+         $B0/$03/           {MOV AL,03       ;enable transceiver     }
+         $EE/               {OUT DX,AL                               }
+
+         $42/               {INC DX                                  }
+         $B0/$03/           {MOV AL,03       ;handshake              }
+         $EE);              {OUT DX,AL                               }
+
+END;
+
+(* INSIOST gets the receiver status from the serial interface. *)
+
+PROCEDURE InSioSt_86 (VAR STATUS : BOOLEAN);
+
+VAR STBF : CHAR;
+
+BEGIN
+
+INLINE ( $BA/$FD/$03/       {MOV DX,03FD                             }
+         $EC/               {IN AL,DX                                }
+         $24/$01/           {AND AL,01       ;receiver ready?        }
+
+         $BF/STBF/          {MOV DI,STBF     ;buffer address         }
+         $36/$88/$03);      {MOV SS:[BP+DI],AL                       }
+
+IF STBF = CHR (0)
+   THEN STATUS := FALSE
+   ELSE STATUS := TRUE;
+
+END;
+
+(* INSIO inputs a byte from the serial interface. *)
+
+PROCEDURE InSio_86 (VAR BYTE : CHAR);
+
+VAR CHBF : CHAR;
+
+BEGIN
+
+INLINE ( $BA/$FD/$03/       {MOV DX,03FD                             }
+         $EC/               {IN AL,DX                                }
+         $24/$01/           {AND AL,01       ;receiver ready?        }
+         $74/$FB/           {JZ -0005                                }
+
+         $BA/$F8/$03/       {MOV DX,03F8                             }
+         $EC/               {IN AL,DX        ;input byte             }
+
+         $BF/CHBF/          {MOV DI,CHBF     ;to buffer address      }
+         $36/$88/$03);      {MOV SS:[BP+DI],AL                       }
+
+BYTE := CHBF;
+
+END;
+
+(* OUTSIOST gets the transmitter handshake status from the serial interface. *)
+
+PROCEDURE OutSioSt_86 (VAR STATUS : BOOLEAN);
+
+VAR STBF : CHAR;
+
+BEGIN
+
+INLINE ( $BA/$FE/$03/       {MOV DX,03FE                             }
+         $EC/               {IN AL,DX                                }
+         $24/$20/           {AND AL,20       ;handshake ready?       }
+
+         $BF/STBF/          {MOV DI,STBF     ;buffer address         }
+         $36/$88/$03);      {MOV SS:[BP+DI],AL                       }
+
+IF STBF = CHR (0)
+   THEN STATUS := FALSE
+   ELSE STATUS := TRUE;
+
+END;
+
+(* OUTSIO outputs a byte to the serial interface. *)
+
+PROCEDURE OutSio_86 (VAR BYTE : CHAR);
+
+VAR CHBF : CHAR;
+    ECHO : CHAR;
+
+BEGIN
+
+CHBF := BYTE;
+
+INLINE ( $BE/CHBF/          {MOV SI,CHBF     ;byte buffer address    }
+         $36/$8A/$1A/       {MOV BL,SS:[BP+SI]                       }
+
+         $BA/$FE/$03/       {MOV DX,03FE                             }
+         $EC/               {IN AL,DX                                }
+         $24/$10/           {AND AL,10       ;handshake ready?       }
+         $74/$FB/           {JZ -0005                                }
+
+         $BA/$FD/$03/       {MOV DX,03FD                             }
+         $EC/               {IN AL,DX                                }
+         $24/$20/           {AND AL,20       ;transmitter ready?     }
+         $74/$FB/           {JZ -0005                                }
+
+         $BA/$F8/$03/       {MOV DX,03F8                             }
+         $8A/$C3/           {MOV AL,BL                               }
+         $EE);              {OUT DX,AL       ;output byte            }
+END;
+
+(* Compumotor PC23 indexer in direct parallel port mode. *)
+
+Const PIOD = $0300;
+      PIOC = $0301;
+      PIOS = $0301;
+
+(* RESETSIO resets the parallel interface. *)
+
+PROCEDURE ResetPio_86;
+
+Begin
+
+   Port [PIOC] := $64;
+   Repeat
+   Until ((Port [PIOS] And $20) = $20);
+   Port [PIOC] := $40;
+   Port [PIOC] := $60;
+   Repeat
+   Until ((Port [PIOS] And $7F) = $17);
+   Port [PIOC] := $20;
+   Port [PIOC] := $60;
+
+End;
+
+(* INSIOST gets the receiver status from the parallel interface. *)
+
+PROCEDURE InPioSt_86 (VAR STATUS : BOOLEAN);
+
+Begin
+
+   Status := ((Port [PIOS] And $08) = $08);
+
+End;
+
+(* INSIO inputs a byte from the parallel interface. *)
+
+PROCEDURE InPio_86 (VAR BYTE : CHAR);
+
+Begin
+
+   Repeat
+   Until ((Port [PIOS] And $08) = $08);
+   Byte := Chr (Port [PIOD]);
+   Port [PIOC] := $E0;
+   Repeat
+   Until ((Port [PIOS] And $08) = $00);
+   Port [PIOC] := $60;
+
+End;
+
+(* OUTSIOST gets the transmitter status from the parallel interface. *)
+
+PROCEDURE OutPioSt_86 (VAR STATUS : BOOLEAN);
+
+Begin
+
+   Status := ((Port [PIOS] And $10) = $10);
+
+End;
+
+(* OUTSIO outputs a byte to the parallel interface. *)
+
+PROCEDURE OutPio_86 (VAR BYTE : CHAR);
+
+Begin
+
+   Repeat
+   Until ((Port [PIOS] And $10) = $10);
+   Port [PIOD] := Ord (Byte);
+   Port [PIOC] := $70;
+   Repeat
+   Until ((Port [PIOS] And $10) = $00);
+   Port [PIOC] := $60;
+
+End;
+
+(* Full Serial/Parallel Compumotor Communications. *)
+
+(* RESETSIO resets the interface. *)
+
+Procedure ResetSio;
+
+Begin
+
+   ResetSio_86;
+
+   ResetPio_86;
+
+End;
+
+(* INSIOST gets the receiver status from the interface. *)
+
+Procedure InSioSt (Var Status : Boolean);
+
+Begin
+
+   InPioSt_86 (Status);
+
+   If Not Status
+      Then InSioSt_86 (Status);
+
+End;
+
+(* INSIO inputs a byte from the interface. *)
+
+Procedure InSio (Var Byte : Char);
+
+Var Status : Boolean;
+
+Begin
+
+   InPioSt_86 (Status);
+
+   If Status
+      Then InPio_86 (Byte)
+      Else InSio_86 (Byte);
+
+End;
+
+(* OUTSIOST gets the transmitter status from the interface. *)
+
+Procedure OutSioSt (Var Status : Boolean);
+
+Begin
+
+   OutSioSt_86 (Status);
+
+End;
+
+(* OUTSIO outputs a byte to the interface. *)
+
+Procedure OutSio (Var Byte : Char);
+
+Begin
+
+   OutSio_86 (Byte);
+   OutPio_86 (Byte);
+
+End;
+

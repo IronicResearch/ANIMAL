@@ -1,0 +1,152 @@
+
+(* MCPU Serial Command Sequences for communications between
+(* the system's desktop computer and the Motion Control Processor Unit. *)
+
+(* MCPU = Compumotor PC 23 series Motion Control System. *)
+
+(* DRIVE MOTOR drives the step count, step rate, and direction
+(* for a specified MCPU motor. *)
+
+PROCEDURE DRIVEM (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+
+BEGIN
+
+   DRIVEX (M);                          (* Drive motor *)
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   OUTSTR (CHSTR);
+
+   OUTCMD ('G');                        (* Go run !... *)
+   OUTCMD (' ');
+
+END;
+
+(* INITIALIZE MOTOR initializes the specified motor for
+(* either constant speed or ramping speed operation. *)
+(* Subsequent RUN MOTOR sequences would run the motor
+(* at this particular set of speed characteristics. *)
+
+PROCEDURE INITM (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   INITX (M);                           (* Initialize motor *)
+
+END;
+
+(* RUN MOTOR runs the step count and direction only for an MCPU motor. *)
+
+PROCEDURE RUNM (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+
+BEGIN
+
+   RUNX (M);                            (* Drive motor *)
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   OUTSTR (CHSTR);
+
+   OUTCMD ('G');                        (* Go *)
+   OUTCMD (' ');
+
+END;
+
+(* KILL MOTOR stops an MCPU motor in mid flight. *)
+
+PROCEDURE KILLM (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   KILLX (M);                           (* Kill motor *)
+
+END;
+
+(* ZERO MOTOR zeroes out the cummulative step count for an MCPU axis. *)
+
+PROCEDURE ZEROM (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   ZEROX (M);                           (* Zero *)
+
+END;
+
+(* PULSE MOTOR pulses the specified motor 1 single step. *)
+
+PROCEDURE PULSEM (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   M.STEPCNT := 1.0;
+   RUNM (M);
+
+END;
+
+(* HOME MOTOR homes the specified motor into its limit-switch position. *)
+(* Homing occurs at constant speed according to pre-loaded MCPU speeds. *)
+
+PROCEDURE HOMEM (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+
+BEGIN
+
+   IntStr (M.MotorNo, ChStr);           (* Unit # *)
+   OutStr (ChStr);
+   OutCmd ('L');                        (* Limit Switches On *)
+   OutCmd ('D');
+   OutCmd ('0');
+   OutCmd (' ');
+
+   M.STEPCNT := MAX_STEPS;
+   RUNX (M);
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   OUTSTR (CHSTR);
+
+   OUTCMD ('G');                        (* Go *)
+   OUTCMD (' ');
+
+END;
+
+(* NO LIMIT turns off the axis' switch mask for un-interrupted operation.*)
+
+PROCEDURE NOLIMITM (VAR M : MOTOR_TABLE);
+
+Var ChStr : String;
+
+BEGIN
+
+   IntStr (M.MotorNo, ChStr);           (* Unit # *)
+   OutStr (ChStr);
+   OutCmd ('L');                        (* Limit Switches Off *)
+   OutCmd ('D');
+   OutCmd ('3');
+   OutCmd (' ');
+
+END;
+
+(* VECTORM changes a motor's vectored speed while running. *)
+
+PROCEDURE VECTORM (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   DRIVEM (M);
+
+END;
+
+(* WHEREM reports a motor's relative position while running. *)
+
+PROCEDURE WHEREM (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   (* GETCOUNT_1200 (M); *)
+
+END;
+
+

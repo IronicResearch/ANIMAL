@@ -1,0 +1,257 @@
+
+(* MCPU Communications. *)
+
+{$IFDEF MCPU_STDBUS}
+{$DEFINE WAITOVER_WINDOW}               (* for TurboPro popup window *)
+{$ENDIF}
+
+(* CLEAR_SEQUENCE clears the currently running sequence. *)
+
+PROCEDURE CLEAR_SEQUENCE;
+
+BEGIN
+
+   SEQUENCE_OVER := TRUE;
+
+END;
+
+(* KILL SEQUENCE kills all MCPU motors, running or not. *)
+
+PROCEDURE KILL_SEQUENCE;
+
+VAR BYTE : CHAR;
+    I : INTEGER;
+    MN : CHAR;
+
+BEGIN
+
+   SYNC_MCPU;
+
+   OUTCMD ('W');         (* Wake Up *)
+
+   FOR I := 1 TO MAX_AXES DO
+       WITH AA [I] DO
+       BEGIN
+       OUTCMD ('K');     (* Kill... *)
+
+       OUTCMD ('M');     (* Motor # *)
+       MN := CHR (M.MOTORNO);
+       OUTSIO (MN);
+       END;
+
+   OUTCMD ('Z');         (* Zzzzz *)
+
+END;
+
+(* NMIOVER jams in an overiding NMI interrupt into the MCPU. *)
+
+PROCEDURE NMIOVER;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   SYNC_MCPU;
+
+   OUTCMD ('W');         (* Wake Up *)
+
+   OUTCMD ('?');         (* What the Fuck? *)
+
+   OUTCMD ('N');         (* NMI, Damnit! *)
+
+   OUTCMD ('Z');         (* Zzzzz *)
+
+END;
+
+(* WAITBACK is the same as WAITOVER
+(* except that the OVERHEAR command is already in progress. *)
+
+PROCEDURE WAITBACK;
+
+VAR BYTE : CHAR;
+    CMD : CHAR;
+    SIOSTAT : BOOLEAN;
+    KEYSTAT : BOOLEAN;
+    QUITWAIT : BOOLEAN;
+
+{$IFDEF WAITOVER_WINDOW}
+var WM : Menu;
+
+Procedure InitMenu(var M : Menu);
+
+const
+  Color1 : MenuColorArray = ($0C, $0A, $06, $4E, $0E, $02, $19, $18);
+  Frame1 : FrameArray = '…»ªºÕ∫';
+
+begin
+  M := NewMenu(['K','k','Q','q'], nil);
+  SubMenu(24,10,ScreenHeight,Horizontal,Frame1,Color1,' Quit Running MCPU Sequence? ');
+    MenuMode(True, True, False);
+    MenuWidth(33);
+    MenuItem(' Yes '   ,4,2, Ord ('Y'),'');
+    MenuItem('  No  ' ,13,3, Ord ('N'),'');
+    MenuItem(' Kill ' ,23,2, Ord ('K'),'');
+    PopSublevel;
+  ResetMenu(M);
+  SetMenuDelay(M, 1);
+end;
+
+Procedure Load_WaitOver_Menu;
+
+Begin
+   InitMenu (WM);
+End;
+
+Procedure Read_WaitOver_Menu (Var Cmd : Char);
+
+Var Ch : Char;
+    Key : MenuKey;
+    X, Y : Integer;
+
+Begin
+  X := WhereXabs;
+  Y := WhereYabs;
+  SelectMenuItem (WM, Ord ('N'));
+  Key := MenuChoice (WM, Ch);
+  Case Ch of
+       ^M     : Cmd := Chr (Key);
+       'Q','q': Cmd := 'Q';
+       'K','k': Cmd := 'K';
+       Else     Cmd := 'N';
+       end;
+  If Cmd = 'K'
+     Then SetMenuDelay (WM, 0);
+  EraseMenu (WM, False);
+  GotoXYabs (X, Y);
+End;
+
+Procedure Unload_WaitOver_Menu;
+
+Begin
+   DisposeMenu (WM);
+End;
+{$ENDIF}
+
+BEGIN
+
+   if NOT MCPU_Installed                (* why bother ? *)
+      then Exit;
+
+{$IFDEF WAITOVER_WINDOW}
+   Load_WaitOver_Menu;
+{$ENDIF}
+
+   DELAY (1 + MCPU_DELAY DIV 10);
+
+   QUITWAIT := FALSE;
+
+   REPEAT
+
+      REPEAT
+         OUTSIOST (SIOSTAT);            (* MCPU hardware status *)
+         RDKEYST (KEYSTAT);
+      UNTIL SIOSTAT OR KEYSTAT;
+
+      IF SIOSTAT
+         THEN QUITWAIT := TRUE;
+
+      IF KEYSTAT
+         THEN BEGIN
+{$IFDEF WAITOVER_WINDOW}
+              Read_WaitOver_Menu (Cmd);
+{$ELSE}
+              WRITELN;
+              WRITE ('Quit running MCPU sequence? (Yes/No/Kill) ');
+              CLRKEY;
+              RDCON (CMD);
+              WRITELN;
+              WRITELN;
+{$ENDIF}
+              CASE CMD OF
+
+                   'K' : BEGIN
+                         KILL_SEQUENCE;
+                         CLEAR_SEQUENCE;
+                         QUITWAIT := TRUE;
+                         END;
+
+                   'Q','Y' : BEGIN
+                         IDLE_MCPU;
+                         CLEAR_SEQUENCE;
+                         QUITWAIT := TRUE;
+                         END;
+
+                   ELSE  BEGIN
+                         NMIOVER;
+                         OVERHEAR;
+                         REPEAT
+                            OUTSIOST (SIOSTAT);
+                         UNTIL NOT SIOSTAT;
+                         END;
+
+                   END;
+              END;
+
+   UNTIL QUITWAIT;
+
+   DELAY (MCPU_DELAY);
+
+{$IFDEF WAITOVER_WINDOW}
+   Unload_WaitOver_Menu;
+{$ENDIF}
+
+END;
+
+(* WAITOVER monitors both MCPU serial status and ANIMAL user console status. *)
+(* Waits for either MCPU Ready or ANIMAL User Quit. *)
+
+PROCEDURE WAITOVER;
+
+BEGIN
+
+   DELAY (1 + MCPU_DELAY DIV 10);
+   OVERHEAR;
+   WAITBACK;
+
+END;
+
+(* REMOTE TRIGGER alternately waits for an answer from the remote switch-box
+(* or from the console. This is used for single-stepping through moves. *)
+
+PROCEDURE REMOTE_TRIGGER (VAR CMD : CHAR);
+
+VAR BYTE : CHAR;
+    KEYST : BOOLEAN;
+    SIOST : BOOLEAN;
+
+BEGIN
+
+   READYMCPU;                     (* Ready ? *)
+
+   OUTCMD ('W');                  (* Wake up *)
+
+   OUTCMD ('P');                  (* Plot *)
+
+   OUTCMD ('G');                  (* Go switch-box *)
+
+   REPEAT
+      INSIOST (SIOST);
+      RDKEYST (KEYST);
+   UNTIL (SIOST) OR (KEYST);
+
+   IF SIOST
+      THEN BEGIN
+           INSIO (BYTE);          (* Point plotted *)
+           CMD := ' ';
+           END;
+
+   IF KEYST
+      THEN BEGIN
+           RDKEY (CMD);
+           OUTCMD ('Q');          (* Quit *)
+           END;
+
+   OUTCMD ('Z');                  (* Zzzzz *)
+
+END;   (* procedure REMOTE TRIGGER *)
+

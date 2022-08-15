@@ -1,0 +1,260 @@
+
+(* MCPU Communications Wait-Over routines. *)
+
+(* MCPU = Compumotor 1200/2100 series motion control system. *)
+
+(* STATUS SEQUENCE checks all MCPU axes for any running status. *)
+
+PROCEDURE STAT_SEQUENCE (VAR STATUS : BOOLEAN);
+
+VAR I : INTEGER;
+
+BEGIN
+
+   STATUS := TRUE;
+
+   FOR I := 1 TO MAX_AXES DO
+       WITH AA [I] DO
+       IF NOT M.ERROR
+          THEN BEGIN
+               GETSTAT (M);
+               STATUS := STATUS AND NOT DECODE_MOTION (M);
+               END;
+END;
+
+(* CLEAR_SEQUENCE clears the currently running sequence. *)
+
+PROCEDURE CLEAR_SEQUENCE;
+
+BEGIN
+
+   SEQUENCE_OVER := TRUE;
+
+END;
+
+(* KILL SEQUENCE kills all MCPU motors, running or not. *)
+
+PROCEDURE KILL_SEQUENCE;
+
+Var I : Integer;
+
+BEGIN
+
+   OUTCMD ('S');                        (* Stop all *)
+   OUTCMD (' ');
+
+   For I := 1 To Max_Axes Do
+       With AA [I] Do
+            KillM (M);
+END;
+
+(* NMIOVER jams in an overiding NMI interrupt into the MCPU. *)
+
+PROCEDURE NMIOVER;
+
+BEGIN
+
+END;
+
+(* WAITBACK is the same as WAITOVER
+(* except that the OVERHEAR command is already in progress. *)
+
+PROCEDURE WAITBACK;
+
+CONST WAIT_TIME = 100;                  (* 100 milliseconds *)
+
+VAR CMD : CHAR;
+    SIOSTAT : BOOLEAN;
+    KEYSTAT : BOOLEAN;
+    QUITWAIT : BOOLEAN;
+    ChStr : String;
+    Compumotor_Delay : Real;
+    {(* WM : Menu; *)}
+    I : Integer;
+    SwiStat : Boolean;
+
+(* WaitOver special menu routines. *)
+
+{(***
+Procedure InitMenu(var M : Menu);
+
+const
+  Color1 : MenuColorArray = ($0C, $0A, $06, $4E, $0E, $02, $19, $18);
+  Frame1 : FrameArray = '…»ªºÕ∫';
+
+begin
+  M := NewMenu(['K','k','Q','q'], nil);
+  SubMenu(24,10,ScreenHeight,Horizontal,Frame1,Color1,' Quit Running MCPU Sequence? ');
+    MenuMode(True, True, False);
+    MenuWidth(33);
+    MenuItem(' Yes '   ,4,2, Ord ('Y'),'');
+    MenuItem('  No  ' ,13,3, Ord ('N'),'');
+    MenuItem(' Kill ' ,23,2, Ord ('K'),'');
+    PopSublevel;
+  ResetMenu(M);
+  SetMenuDelay(M, 1);
+end;
+
+Procedure Load_WaitOver_Menu;
+
+Begin
+   InitMenu (WM);
+End;
+
+Procedure Read_WaitOver_Menu (Var Cmd : Char);
+
+Var Ch : Char;
+    Key : MenuKey;
+    X, Y : Integer;
+
+Begin
+  X := WhereXabs;
+  Y := WhereYabs;
+  SelectMenuItem (WM, Ord ('N'));
+  Key := MenuChoice (WM, Ch);
+  Case Ch of
+       ^M     : Cmd := Chr (Key);
+       'Q','q': Cmd := 'Q';
+       'K','k': Cmd := 'K';
+       Else     Cmd := 'N';
+       end;
+  If Cmd = 'K'
+     Then SetMenuDelay (WM, 0);
+  EraseMenu (WM, False);
+  GotoXYabs (X, Y);
+End;
+
+Procedure Unload_WaitOver_Menu;
+
+Begin
+   DisposeMenu (WM);
+End;
+***)}
+
+BEGIN
+
+   {(* Load_WaitOver_Menu; *)}
+
+   Compumotor_Delay := Mcpu_Delay / 1000.0;
+   OutCmd ('T');
+   RealStr (Compumotor_Delay, ChStr);
+   OutStr (ChStr);
+   OutCmd (' ');
+
+   DELAY (1 + MCPU_DELAY);
+
+   QUITWAIT := FALSE;
+
+   REPEAT
+
+      REPEAT
+         STAT_SEQUENCE (SIOSTAT);
+         IF NOT SIOSTAT
+            THEN DELAY (1 + Mcpu_Delay);
+      UNTIL SIOSTAT OR KeyPressed;
+
+      SwiStat := False;
+      For I := 1 to Max_Axes Do
+          With AA [I] Do
+               If Not M.Error
+                  Then SwiStat := SwiStat Or (M.Stat = 'S');
+      If SwiStat
+         Then Writeln (^G, '***** Switch Status Detected *****');
+
+      IF SIOSTAT
+         THEN QUITWAIT := TRUE;
+
+      IF KeyPressed
+         THEN BEGIN
+              {(* Read_WaitOver_Menu (Cmd); *)}
+              Writeln;
+              Write ('Quit Running MCPU Sequence? (Yes/No/Kill) ');
+              RdKey (Cmd);
+              Writeln (Cmd);
+              Writeln;
+
+              CASE CMD OF
+
+                   'K' : BEGIN
+                         KILL_SEQUENCE;
+                         CLEAR_SEQUENCE;
+                         QUITWAIT := TRUE;
+                         END;
+
+                   'Q',
+                   'Y' : BEGIN
+                         CLEAR_SEQUENCE;
+                         QUITWAIT := TRUE;
+                         END;
+
+                   'N' : QuitWait := False;
+
+                   END;
+              END;
+
+   UNTIL QUITWAIT;
+
+   DELAY (1 + MCPU_DELAY);
+
+   {(* Unload_WaitOver_Menu; *)}
+
+END;
+
+(* WAITOVER monitors both MCPU serial status and ANIMAL user console status. *)
+(* Waits for either MCPU Ready or ANIMAL User Quit. *)
+
+PROCEDURE WAITOVER;
+
+BEGIN
+
+   OVERHEAR;
+   WAITBACK;
+
+END;
+
+(* REMOTE TRIGGER alternately waits for an answer from the remote switch-box
+(* or from the console. This is used for single-stepping through moves. *)
+
+PROCEDURE REMOTE_TRIGGER (VAR CMD : CHAR);
+
+Const Sample_Time = 100;
+
+Var KeyStat : Boolean;
+    TrigStat : Boolean;
+    SwitStat : Boolean;
+
+BEGIN
+
+   Repeat
+      Delay (Sample_Time);
+      RdKeySt (KeyStat);
+      GetStat (AA [XX].M);
+      SwitStat := (AA [XX].M.Stat = 'S');
+      Get_Trigger (TrigStat);
+   Until TrigStat Or SwitStat Or KeyStat;
+
+   If TrigStat
+      Then Repeat
+              Delay (Sample_Time);
+              Get_Trigger (TrigStat);
+              RdKeySt (KeyStat);
+              If Not TrigStat
+                 Then Write (^G);
+           Until (Not TrigStat) Or KeyStat;
+{  (* TODO: what is this ??? *)
+   If SwitStat
+      Then Repeat
+              Delay (Sample_Time);
+              GetStat (AA [XX].M);
+              SwitStat := (AA [XX].M.Stat = 'R');
+              RdKeySt (KeyStat);
+              If SwitStat
+                 Then Write (^G);
+           Until SwitStat Or KeyStat;
+}
+   If KeyStat
+      Then RdKey (Cmd)
+      Else Cmd := Chr (0);
+
+END;   (* procedure REMOTE TRIGGER *)
+

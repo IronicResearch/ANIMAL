@@ -1,0 +1,48 @@
+
+(* MCPU status decoding routines. *)
+
+(* MCPU = Compumotor 1200/2100 motion control system. *)
+
+(* DECODE MOTION decodes an MCPU axis status byte for motion. *)
+
+FUNCTION DECODE_MOTION (VAR M : MOTOR_TABLE) : BOOLEAN;
+
+BEGIN
+
+   DECODE_MOTION := (M.STAT = 'B') OR (M.STAT = 'C');
+
+END;
+
+(* DECODE STATUS translates an MCPU axis status byte into a message string. *)
+
+FUNCTION DECODE_STATUS (VAR M : MOTOR_TABLE) : STRING;
+
+BEGIN
+
+   CASE M.STAT OF
+        'R' : DECODE_STATUS := 'Ready Drive Done';
+        'B' : DECODE_STATUS := 'Busy Motor Moving';
+        'S' : DECODE_STATUS := 'Switch Stop';
+        'E' : DECODE_STATUS := 'Existance Error';
+        ELSE  DECODE_STATUS := '???';
+        END;
+
+END;
+
+(* DECODE QUICK translates an MCPU axis status byte into a quick message. *)
+
+FUNCTION DECODE_QUICK (VAR M : MOTOR_TABLE) : STRING;
+
+BEGIN
+
+   CASE M.STAT OF
+        'R' : DECODE_QUICK := 'Ready';
+        'B' : DECODE_QUICK := 'Busy';
+        'S' : DECODE_QUICK := 'Switch';
+        'E' : DECODE_QUICK := 'Error';
+        ELSE  DECODE_QUICK := '???';
+        END;
+
+END;
+
+

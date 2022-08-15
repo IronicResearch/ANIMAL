@@ -1,0 +1,95 @@
+
+(* Serial interface input/output routines in 8086 machine code. *)
+(* Uses Compumotor PC23 indexer in direct parallel port mode. *)
+
+(* RESETSIO resets the serial interface at COM1. *)
+
+PROCEDURE RESETSIO;
+
+Const PIOD = $0300;
+      PIOC = $0301;
+      PIOS = $0301;
+
+Begin
+
+   Port [PIOC] := $64;
+   Repeat
+   Until ((Port [PIOS] And $20) = $20);
+   Port [PIOC] := $40;
+   Port [PIOC] := $60;
+   Repeat
+   Until ((Port [PIOS] And $7F) = $17);
+   Port [PIOC] := $20;
+   Port [PIOC] := $60;
+
+End;
+
+(* INSIOST gets the receiver status from the serial interface. *)
+
+PROCEDURE INSIOST (VAR STATUS : BOOLEAN);
+
+Const PIOD = $0300;
+      PIOC = $0301;
+      PIOS = $0301;
+
+Begin
+
+   Status := ((Port [PIOS] And $08) = $08);
+
+End;
+
+(* INSIO inputs a byte from the serial interface. *)
+
+PROCEDURE INSIO (VAR BYTE : CHAR);
+
+Const PIOD = $0300;
+      PIOC = $0301;
+      PIOS = $0301;
+
+Begin
+
+   Repeat
+   Until ((Port [PIOS] And $08) = $08);
+   Byte := Chr (Port [PIOD]);
+   Port [PIOC] := $E0;
+   Repeat
+   Until ((Port [PIOS] And $08) = $00);
+   Port [PIOC] := $60;
+
+End;
+
+(* OUTSIOST gets the transmitter handshake status from the serial interface. *)
+
+PROCEDURE OUTSIOST (VAR STATUS : BOOLEAN);
+
+Const PIOD = $0300;
+      PIOC = $0301;
+      PIOS = $0301;
+
+Begin
+
+   Status := ((Port [PIOS] And $10) = $10);
+
+End;
+
+(* OUTSIO outputs a byte to the serial interface. *)
+
+PROCEDURE OUTSIO (VAR BYTE : CHAR);
+
+Const PIOD = $0300;
+      PIOC = $0301;
+      PIOS = $0301;
+
+Begin
+
+   Repeat
+   Until ((Port [PIOS] And $10) = $10);
+   Port [PIOD] := Ord (Byte);
+   Port [PIOC] := $70;
+   Repeat
+   Until ((Port [PIOS] And $10) = $00);
+   Port [PIOC] := $60;
+
+End;
+
+
