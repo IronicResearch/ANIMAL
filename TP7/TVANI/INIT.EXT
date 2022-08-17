@@ -1,1 +1,455 @@
-(* Initialization routines. *)(* 05-30-95 *)(* Installation for generic motion control system. *)(* Custom specs for Compumotor or STD bus systems. *)(* INIT LOAD initializes and loads all of the one-time ANIMAL info. *)PROCEDURE INIT_LOAD;(* INITIALIZE AXIS NUMBERS assigns the logical (letter) ANIMAL axes(* to the physical (number) MCPU axes. *)(* Installation for generic motion control system. *)PROCEDURE INIT_AXIS_NUMBERS;BEGIN   FOR I := 1 TO MAX_AXES DO       AA [I].M.MOTORNO := I;END;(* INITIALIZE AXIS NAMES names the ANIMAL axes with unique 2-letter ID labels. *)(* Installation for generic motion control system. *)PROCEDURE INIT_AXIS_NAMES;BEGIN   FOR I := 1 TO MAX_AXES DO       BEGIN       AA [I].ID [1] := 'X';       AA [I].ID [2] := CHR (ORD ('A') + I - 1);       END;END;(* INITIALIZE QUICK quickly initializes all ANIMAL axis parameters.(* Presets axis numbers, step counts, speeds, and units. *)PROCEDURE INIT_QUICK;BEGIN   FOR I := 1 TO MAX_AXES DO       With AA [I] Do       BEGIN       A.ID [1] := ID [1];       A.ID [2] := ID [2];       A.NO := M.MOTORNO;       A.NAME := '---';       END;   FOR I := 1 TO MAX_AXES DO       With AA [I] Do       BEGIN       M.DIR := FWD;       M.STEPCNT := 0.0;       M.COUNT   := 0.0;       M.RUNCNT  := 0.0;       M.ERROR   := TRUE;       M.COMPUMTR_2100 := FALSE;       END;   FOR I := 1 TO MAX_AXES DO       With AA [I] Do       BEGIN{$IFDEF MCPU_COMPUMTR}       R.ACCEL := True;       R.MAX_SPEED   := Trunc (Steps_Per_Rev);       R.MIN_LOWSPD  := 0;       R.MAX_HIGHSPD := Trunc (Steps_Per_Rev * 2);       R.MAX_RAMPCNT := Trunc (Steps_Per_Rev);{$ELSE}       R.ACCEL := (* FALSE; *) True;       R.MAX_SPEED   := 400;       R.MIN_LOWSPD  := 200;       R.MAX_HIGHSPD := 800;       R.MAX_RAMPCNT := 400;{$ENDIF}       END;   FOR I := 1 TO MAX_AXES DO       With AA [I] Do       BEGIN       K.KSCALE := 1.0;       K.UNITS := 'Steps';       K.DP := 1;       END;   FOR I := 1 TO MAX_AXES DO       With AA [I] Do       BEGIN       H.SPEC := FALSE;       H.ORDER := I;       H.LIMIT := REV;       H.SPEED := R.MAX_SPEED;       H.ALIGN := FWD;       H.STEPS := 10;       H.COUNT := 0.0;       END;   FOR I := 1 TO MAX_AXES DO       With AA [I] Do       BEGIN       B.SPEC := FALSE;       B.COMPDIR := REV;       B.COMPCNT := 0.0;       END;{$IFDEF ANIMAL_PARAMETERS}   For I := 1 to Max_Axes Do       With AA [I] Do       begin       P.Spec := False;       P.Start_Pt := 0.0;       P.End_Pt   := 0.0;       P.Start_Frame := 0;       P.End_Frame   := 0;       P.Taper := False;       P.Accel := 0.0;       P.Konst := 0.0;       P.Decel := 0.0;       P.MoveType := '---';       P.Streak := False;       P.Initl_Size := 0.0;       P.Final_Size := 0.0;       P.Multi := False;       P.Total := 0;       end;{$ENDIF}END;(* INITIALIZE TRIGGERS resets the triggers for all phases to 0. *)PROCEDURE INIT_TRIGGERS;VAR T : INTEGER;    L : INTEGER;BEGIN   FOR T := 1 TO MAX_TRIG DO       WITH TRIGGER [T] DO            BEGIN            SPEC := FALSE;            MASK := $00;            FOR L := 1 TO 8 DO                TRIG [L] := $00;            FOR L := 1 TO 8 DO                NULL [L] := $00;            FOR L := 1 TO 8 DO                TIME [L] := 0;            FOR L := 1 TO 8 DO                WAIT [L] := 0;            SKIP := 1;            STEP := 1;            CNTR := 1;            END;END;(* DEFAULT AXIS MAP attempts to load a default axis map file from disk. *)PROCEDURE DEFAULT_AXIS_MAP;VAR MAPNAME : STRING [14];    MAPFILE : FILE OF MAP_TABLE;    LOAD_OK : BOOLEAN;BEGIN   MAPNAME := 'ANIMAL.MAP';   ASSIGN (MAPFILE, MAPNAME);   {$I-}   RESET (MAPFILE);   {$I+}   LOAD_OK := (IORESULT = 0);   IF LOAD_OK      THEN WRITELN ('Loading Data File ANIMAL.MAP for Default Axis Mapping...')      ELSE WRITELN ('Data File ANIMAL.MAP Not Found -- Preset Axis Mapping Used');   IF LOAD_OK      THEN BEGIN           FOR I := 1 TO MAX_AXES DO               READ (MAPFILE, AA [I].A);           CLOSE (MAPFILE);           END;  (* IF loading ok *)END;(* DEFAULT SPEEDS attempts to load a default speed file from disk. *)PROCEDURE DEFAULT_SPEEDS;VAR SPEEDNAME : STRING [14];    SPEEDFILE : FILE OF RUN_PROFILE;    LOAD_OK : BOOLEAN;BEGIN   SPEEDNAME := 'ANIMAL.SPD';   ASSIGN (SPEEDFILE, SPEEDNAME);   {$I-}   RESET (SPEEDFILE);   {$I+}   LOAD_OK := (IORESULT = 0);   IF LOAD_OK      THEN WRITELN ('Loading Data File ANIMAL.SPD for Default Speeds...')      ELSE WRITELN ('Data File ANIMAL.SPD Not Found -- Preset Speeds Used');   IF LOAD_OK      THEN BEGIN           FOR I := 1 TO MAX_AXES DO               READ (SPEEDFILE, AA [I].R);           CLOSE (SPEEDFILE);           END;  (* IF loading ok *)END;(* DEFAULT UNITS attempts to load a default user units file from disk. *)PROCEDURE DEFAULT_UNITS;VAR UNITSNAME : STRING [14];    UNITSFILE : FILE OF CONVERSION_TABLE;    LOAD_OK : BOOLEAN;BEGIN   UNITSNAME := 'ANIMAL.UNT';   ASSIGN (UNITSFILE, UNITSNAME);   {$I-}   RESET (UNITSFILE);   {$I+}   LOAD_OK := (IORESULT = 0);   IF LOAD_OK      THEN WRITELN ('Loading Data File ANIMAL.UNT for Default Units...')      ELSE WRITELN ('Data File ANIMAL.UNT Not Found -- Preset Units Used');   IF LOAD_OK      THEN BEGIN           FOR I := 1 TO MAX_AXES DO               READ (UNITSFILE, AA [I].K);           CLOSE (UNITSFILE);           END;  (* IF loading ok *)END;(* DEFAULT ALIGNMENT attempts to load a default alignment file from disk. *)PROCEDURE DEFAULT_ALIGNMENT;VAR HOMENAME : STRING [14];    HOMEFILE : FILE OF HOME_TABLE;    LOAD_OK : BOOLEAN;BEGIN   HOMENAME := 'ANIMAL.ALN';   ASSIGN (HOMEFILE, HOMENAME);   {$I-}   RESET (HOMEFILE);   {$I+}   LOAD_OK := (IORESULT = 0);   IF LOAD_OK      THEN WRITELN ('Loading Data File ANIMAL.ALN for Default Alignment...')      ELSE WRITELN ('Data File ANIMAL.ALN Not Found -- Preset Alignment Used');   IF LOAD_OK      THEN BEGIN           FOR I := 1 TO MAX_AXES DO               READ (HOMEFILE, AA [I].H);           CLOSE (HOMEFILE);           END;  (* IF loading ok *)END;(* DEFAULT BACKLASH attempts to load a default backlash file from disk. *)PROCEDURE DEFAULT_BACKLASH;VAR BACKLASHNAME : STRING [14];    BACKLASHFILE : FILE OF BACKLASH_TABLE;    LOAD_OK : BOOLEAN;BEGIN   BACKLASHNAME := 'ANIMAL.BKL';   ASSIGN (BACKLASHFILE, BACKLASHNAME);   {$I-}   RESET (BACKLASHFILE);   {$I+}   LOAD_OK := (IORESULT = 0);   IF LOAD_OK      THEN WRITELN ('Loading Data File ANIMAL.BKL for Default Backlash...')      ELSE WRITELN ('Data File ANIMAL.BKL Not Found -- Preset Backlash Used');   IF LOAD_OK      THEN BEGIN           FOR I := 1 TO MAX_AXES DO               READ (BACKLASHFILE, AA [I].B);           CLOSE (BACKLASHFILE);           END;  (* IF loading ok *)END;(* DEFAULT TRIGGER attempts to load a default trigger file from disk. *)PROCEDURE DEFAULT_TRIGGERS;VAR TRIGGERNAME : STRING [14];    TRIGGERFILE : FILE OF TRIGGER_TABLE;    LOAD_OK : BOOLEAN;BEGIN   TRIGGERNAME := 'ANIMAL.TRG';   ASSIGN (TRIGGERFILE, TRIGGERNAME);   {$I-}   RESET (TRIGGERFILE);   {$I+}   LOAD_OK := (IORESULT = 0);   IF LOAD_OK      THEN WRITELN ('Loading Data File ANIMAL.TRG for Default Triggers...')      ELSE WRITELN ('Data File ANIMAL.TRG Not Found -- Preset Triggers Used');   IF LOAD_OK      THEN BEGIN           FOR I := 1 TO MAX_TRIG DO               READ (TRIGGERFILE, TRIGGER [I]);           CLOSE (TRIGGERFILE);           END;END;(* TRANSFER SPEEDS transfers all optimum ANIMAL axis speeds(* from the run profile records to the motor records. *)PROCEDURE XFER_SPEEDS;BEGIN   FOR I := 1 TO MAX_AXES DO       WITH AA [I] DO            BEGIN            M.ACCELST := R.ACCEL;            M.SPEED   := R.MAX_SPEED;            M.LOWSPD  := R.MIN_LOWSPD;            M.HIGHSPD := R.MAX_HIGHSPD;            M.RAMPCNT := R.MAX_RAMPCNT;            M.RAMPK   := 0;            END;END;(* TRANSFER AXIS MAP transfers the ANIMAL axis map. *)PROCEDURE XFER_AXIS_MAP;BEGIN   FOR I := 1 TO MAX_AXES DO       BEGIN       AA [I].ID [1] := AA [I].A.ID [1];       AA [I].ID [2] := AA [I].A.ID [2];       AA [I].M.MOTORNO := AA [I].A.NO;       END;END;(* TEST AXES pre-checks all ANIMAL MCPU axes. *)PROCEDURE TEST_AXES;VAR RDST : STRING;BEGIN   WRITELN ('Testing ANIMAL''s MCPU Axes...');   FOR I := 1 TO MAX_AXES DO       WITH AA [I] DO       BEGIN       WRITE ('ANIMAL Axis ', ID, ' = MCPU Axis # ', M.MOTORNO:2, ' ... Status --> ');       If M.MotorNo > 0          Then begin          GETSTAT (M);{$IFDEF MCPU_COMPUMTR}          IF NOT M.ERROR             THEN BEGIN               GETCOUNT_2100 (M);               IF M.Stat <> '?'                  THEN M.COMPUMTR_2100 := TRUE                  ELSE M.COMPUMTR_2100 := FALSE;               IF M.Stat = '?'                  THEN GETCOUNT_1200 (M);               END;{$ENDIF}          RDST := DECODE_QUICK (M);          WRITE (M.STAT, ' = ', RDST);          end          Else Write ('(Not Installed)');       Writeln;       END;   WRITELN ('All MCPU Axes Tested');   WRITELN;END;BEGIN   (* procedure INIT LOAD *)   INIT_AXIS_NUMBERS;   INIT_AXIS_NAMES;   INIT_QUICK;   INIT_TRIGGERS;   DEFAULT_AXIS_MAP;   DEFAULT_SPEEDS;   DEFAULT_UNITS;   DEFAULT_ALIGNMENT;   DEFAULT_BACKLASH;   DEFAULT_TRIGGERS;   WRITELN;   XFER_AXIS_MAP;   XFER_SPEEDS;   TEST_AXES;   INIT_AXES;END;    (* procedure INIT LOAD *)
+
+(* Initialization routines. *)
+
+(* 05-30-95 *)
+(* Installation for generic motion control system. *)
+(* Custom specs for Compumotor or STD bus systems. *)
+
+(* INIT LOAD initializes and loads all of the one-time ANIMAL info. *)
+
+PROCEDURE INIT_LOAD;
+
+(* INITIALIZE AXIS NUMBERS assigns the logical (letter) ANIMAL axes
+(* to the physical (number) MCPU axes. *)
+(* Installation for generic motion control system. *)
+
+PROCEDURE INIT_AXIS_NUMBERS;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       AA [I].M.MOTORNO := I;
+
+END;
+
+(* INITIALIZE AXIS NAMES names the ANIMAL axes with unique 2-letter ID labels. *)
+(* Installation for generic motion control system. *)
+
+PROCEDURE INIT_AXIS_NAMES;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       BEGIN
+       AA [I].ID [1] := 'X';
+       AA [I].ID [2] := CHR (ORD ('A') + I - 1);
+       END;
+
+END;
+
+(* INITIALIZE QUICK quickly initializes all ANIMAL axis parameters.
+(* Presets axis numbers, step counts, speeds, and units. *)
+
+PROCEDURE INIT_QUICK;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       With AA [I] Do
+       BEGIN
+       A.ID [1] := ID [1];
+       A.ID [2] := ID [2];
+       A.NO := M.MOTORNO;
+       A.NAME := '---';
+       END;
+
+   FOR I := 1 TO MAX_AXES DO
+       With AA [I] Do
+       BEGIN
+       M.DIR := FWD;
+       M.STEPCNT := 0.0;
+       M.COUNT   := 0.0;
+       M.RUNCNT  := 0.0;
+       M.ERROR   := TRUE;
+       M.COMPUMTR_2100 := FALSE;
+       END;
+
+   FOR I := 1 TO MAX_AXES DO
+       With AA [I] Do
+       BEGIN
+{$IFDEF MCPU_COMPUMTR}
+       R.ACCEL := True;
+       R.MAX_SPEED   := Trunc (Steps_Per_Rev);
+       R.MIN_LOWSPD  := 0;
+       R.MAX_HIGHSPD := Trunc (Steps_Per_Rev * 2);
+       R.MAX_RAMPCNT := Trunc (Steps_Per_Rev);
+{$ELSE}
+       R.ACCEL := (* FALSE; *) True;
+       R.MAX_SPEED   := 400;
+       R.MIN_LOWSPD  := 200;
+       R.MAX_HIGHSPD := 800;
+       R.MAX_RAMPCNT := 400;
+{$ENDIF}
+       END;
+
+   FOR I := 1 TO MAX_AXES DO
+       With AA [I] Do
+       BEGIN
+       K.KSCALE := 1.0;
+       K.UNITS := 'Steps';
+       K.DP := 1;
+       END;
+
+   FOR I := 1 TO MAX_AXES DO
+       With AA [I] Do
+       BEGIN
+       H.SPEC := FALSE;
+       H.ORDER := I;
+       H.LIMIT := REV;
+       H.SPEED := R.MAX_SPEED;
+       H.ALIGN := FWD;
+       H.STEPS := 10;
+       H.COUNT := 0.0;
+       END;
+
+   FOR I := 1 TO MAX_AXES DO
+       With AA [I] Do
+       BEGIN
+       B.SPEC := FALSE;
+       B.COMPDIR := REV;
+       B.COMPCNT := 0.0;
+       END;
+
+{$IFDEF ANIMAL_PARAMETERS}
+   For I := 1 to Max_Axes Do
+       With AA [I] Do
+       begin
+       P.Spec := False;
+       P.Start_Pt := 0.0;
+       P.End_Pt   := 0.0;
+       P.Start_Frame := 0;
+       P.End_Frame   := 0;
+       P.Taper := False;
+       P.Accel := 0.0;
+       P.Konst := 0.0;
+       P.Decel := 0.0;
+       P.MoveType := '---';
+       P.Streak := False;
+       P.Initl_Size := 0.0;
+       P.Final_Size := 0.0;
+       P.Multi := False;
+       P.Total := 0;
+       end;
+{$ENDIF}
+END;
+
+(* INITIALIZE TRIGGERS resets the triggers for all phases to 0. *)
+
+PROCEDURE INIT_TRIGGERS;
+
+VAR T : INTEGER;
+    L : INTEGER;
+
+BEGIN
+
+   FOR T := 1 TO MAX_TRIG DO
+       WITH TRIGGER [T] DO
+            BEGIN
+            SPEC := FALSE;
+            MASK := $00;
+            FOR L := 1 TO 8 DO
+                TRIG [L] := $00;
+            FOR L := 1 TO 8 DO
+                NULL [L] := $00;
+            FOR L := 1 TO 8 DO
+                TIME [L] := 0;
+            FOR L := 1 TO 8 DO
+                WAIT [L] := 0;
+            SKIP := 1;
+            STEP := 1;
+            CNTR := 1;
+            END;
+
+END;
+
+(* DEFAULT AXIS MAP attempts to load a default axis map file from disk. *)
+
+PROCEDURE DEFAULT_AXIS_MAP;
+
+VAR MAPNAME : STRING [14];
+    MAPFILE : FILE OF MAP_TABLE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   MAPNAME := 'ANIMAL.MAP';
+   ASSIGN (MAPFILE, MAPNAME);
+   {$I-}
+   RESET (MAPFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.MAP for Default Axis Mapping...')
+      ELSE WRITELN ('Data File ANIMAL.MAP Not Found -- Preset Axis Mapping Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               READ (MAPFILE, AA [I].A);
+
+           CLOSE (MAPFILE);
+           END;  (* IF loading ok *)
+
+END;
+
+(* DEFAULT SPEEDS attempts to load a default speed file from disk. *)
+
+PROCEDURE DEFAULT_SPEEDS;
+
+VAR SPEEDNAME : STRING [14];
+    SPEEDFILE : FILE OF RUN_PROFILE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   SPEEDNAME := 'ANIMAL.SPD';
+   ASSIGN (SPEEDFILE, SPEEDNAME);
+   {$I-}
+   RESET (SPEEDFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.SPD for Default Speeds...')
+      ELSE WRITELN ('Data File ANIMAL.SPD Not Found -- Preset Speeds Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               READ (SPEEDFILE, AA [I].R);
+
+           CLOSE (SPEEDFILE);
+           END;  (* IF loading ok *)
+
+END;
+
+(* DEFAULT UNITS attempts to load a default user units file from disk. *)
+
+PROCEDURE DEFAULT_UNITS;
+
+VAR UNITSNAME : STRING [14];
+    UNITSFILE : FILE OF CONVERSION_TABLE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   UNITSNAME := 'ANIMAL.UNT';
+   ASSIGN (UNITSFILE, UNITSNAME);
+   {$I-}
+   RESET (UNITSFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.UNT for Default Units...')
+      ELSE WRITELN ('Data File ANIMAL.UNT Not Found -- Preset Units Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               READ (UNITSFILE, AA [I].K);
+
+           CLOSE (UNITSFILE);
+           END;  (* IF loading ok *)
+
+END;
+
+(* DEFAULT ALIGNMENT attempts to load a default alignment file from disk. *)
+
+PROCEDURE DEFAULT_ALIGNMENT;
+
+VAR HOMENAME : STRING [14];
+    HOMEFILE : FILE OF HOME_TABLE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   HOMENAME := 'ANIMAL.ALN';
+   ASSIGN (HOMEFILE, HOMENAME);
+   {$I-}
+   RESET (HOMEFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.ALN for Default Alignment...')
+      ELSE WRITELN ('Data File ANIMAL.ALN Not Found -- Preset Alignment Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               READ (HOMEFILE, AA [I].H);
+
+           CLOSE (HOMEFILE);
+           END;  (* IF loading ok *)
+
+END;
+
+(* DEFAULT BACKLASH attempts to load a default backlash file from disk. *)
+
+PROCEDURE DEFAULT_BACKLASH;
+
+VAR BACKLASHNAME : STRING [14];
+    BACKLASHFILE : FILE OF BACKLASH_TABLE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   BACKLASHNAME := 'ANIMAL.BKL';
+   ASSIGN (BACKLASHFILE, BACKLASHNAME);
+   {$I-}
+   RESET (BACKLASHFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.BKL for Default Backlash...')
+      ELSE WRITELN ('Data File ANIMAL.BKL Not Found -- Preset Backlash Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               READ (BACKLASHFILE, AA [I].B);
+
+           CLOSE (BACKLASHFILE);
+           END;  (* IF loading ok *)
+
+END;
+
+(* DEFAULT TRIGGER attempts to load a default trigger file from disk. *)
+
+PROCEDURE DEFAULT_TRIGGERS;
+
+VAR TRIGGERNAME : STRING [14];
+    TRIGGERFILE : FILE OF TRIGGER_TABLE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   TRIGGERNAME := 'ANIMAL.TRG';
+   ASSIGN (TRIGGERFILE, TRIGGERNAME);
+   {$I-}
+   RESET (TRIGGERFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.TRG for Default Triggers...')
+      ELSE WRITELN ('Data File ANIMAL.TRG Not Found -- Preset Triggers Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_TRIG DO
+               READ (TRIGGERFILE, TRIGGER [I]);
+
+           CLOSE (TRIGGERFILE);
+           END;
+
+END;
+
+(* TRANSFER SPEEDS transfers all optimum ANIMAL axis speeds
+(* from the run profile records to the motor records. *)
+
+PROCEDURE XFER_SPEEDS;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       WITH AA [I] DO
+            BEGIN
+            M.ACCELST := R.ACCEL;
+            M.SPEED   := R.MAX_SPEED;
+            M.LOWSPD  := R.MIN_LOWSPD;
+            M.HIGHSPD := R.MAX_HIGHSPD;
+            M.RAMPCNT := R.MAX_RAMPCNT;
+            M.RAMPK   := 0;
+            END;
+
+END;
+
+(* TRANSFER AXIS MAP transfers the ANIMAL axis map. *)
+
+PROCEDURE XFER_AXIS_MAP;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       BEGIN
+       AA [I].ID [1] := AA [I].A.ID [1];
+       AA [I].ID [2] := AA [I].A.ID [2];
+       AA [I].M.MOTORNO := AA [I].A.NO;
+       END;
+
+END;
+
+(* TEST AXES pre-checks all ANIMAL MCPU axes. *)
+
+PROCEDURE TEST_AXES;
+
+VAR RDST : STRING;
+
+BEGIN
+
+   WRITELN ('Testing ANIMAL''s MCPU Axes...');
+
+   FOR I := 1 TO MAX_AXES DO
+       WITH AA [I] DO
+       BEGIN
+       WRITE ('ANIMAL Axis ', ID, ' = MCPU Axis # ', M.MOTORNO:2, ' ... Status --> ');
+       If M.MotorNo > 0
+          Then begin
+          GETSTAT (M);
+{$IFDEF MCPU_COMPUMTR}
+          IF NOT M.ERROR
+             THEN BEGIN
+               GETCOUNT_2100 (M);
+               IF M.Stat <> '?'
+                  THEN M.COMPUMTR_2100 := TRUE
+                  ELSE M.COMPUMTR_2100 := FALSE;
+               IF M.Stat = '?'
+                  THEN GETCOUNT_1200 (M);
+               END;
+{$ENDIF}
+          RDST := DECODE_QUICK (M);
+          WRITE (M.STAT, ' = ', RDST);
+          end
+          Else Write ('(Not Installed)');
+       Writeln;
+       END;
+
+   WRITELN ('All MCPU Axes Tested');
+   WRITELN;
+
+END;
+
+BEGIN   (* procedure INIT LOAD *)
+
+   INIT_AXIS_NUMBERS;
+   INIT_AXIS_NAMES;
+
+   INIT_QUICK;
+   INIT_TRIGGERS;
+
+   DEFAULT_AXIS_MAP;
+   DEFAULT_SPEEDS;
+   DEFAULT_UNITS;
+   DEFAULT_ALIGNMENT;
+   DEFAULT_BACKLASH;
+   DEFAULT_TRIGGERS;
+   WRITELN;
+
+   XFER_AXIS_MAP;
+   XFER_SPEEDS;
+
+   TEST_AXES;
+   INIT_AXES;
+
+END;    (* procedure INIT LOAD *)
+

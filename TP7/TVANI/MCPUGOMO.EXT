@@ -1,1 +1,379 @@
-(* INIT SPEEDS initializes all axis motor speeds. *){  (* use general version Init_Speeds *)Procedure Init_Speeds;Begin   For I := 1 to Min_Axes Do       With AA [I] Do            If Spec               Then If NOT M.Error                    Then InitM (M);End;}(* MAX OUT SPEED resets a single MCPU motor to its max default speed. *)PROCEDURE MAXOUT_SPEED (VAR A : AXIS_TABLE);BEGIN   IF (* A.R.ACCEL *) TRUE              (* no wimps... *)      THEN BEGIN           A.M.ACCELST := TRUE;           A.M.LOWSPD  := A.R.MIN_LOWSPD;           A.M.HIGHSPD := A.R.MAX_HIGHSPD;           A.M.RAMPCNT := A.R.MAX_RAMPCNT;           A.M.RAMPK   := 0;           END      ELSE BEGIN           A.M.ACCELST := FALSE;           A.M.SPEED := A.R.MAX_SPEED;           END;END;(* FAST SPEEDS resets all specified MCPU motor speeds back to their(* maximum default values for fastest motor operations. *){ (* use general version Fast_Speeds *)PROCEDURE FAST_SPEEDS;BEGIN   FOR I := 1 TO MIN_AXES DO       IF AA [I].SPEC          THEN MAXOUT_SPEED (AA [I]);END;}(* SCALE SPEED scales the max speeds according to the selected time. *)PROCEDURE SCALE_SPEED (VAR TIME : REAL; VAR A : AXIS_TABLE);VAR SPEED : REAL;BEGINIF TIME = 0.0   THEN MAXOUT_SPEED (A)ELSE BEGIN   IF A.R.ACCEL      THEN SPEED := A.R.MAX_HIGHSPD      ELSE SPEED := A.R.MAX_SPEED;   IF SPEED < (A.M.STEPCNT / TIME)      THEN MAXOUT_SPEED (A)      ELSE BEGIN           IF A.R.ACCEL           THEN BEGIN                A.M.HIGHSPD := ROUND (A.M.STEPCNT / TIME);                IF A.M.HIGHSPD <= A.R.MIN_LOWSPD                THEN BEGIN                     A.M.ACCELST := FALSE;                     A.M.SPEED   := A.M.HIGHSPD;                     END                ELSE BEGIN                     A.M.RAMPK   := 0;                     A.M.ACCELST := TRUE;                     A.M.LOWSPD  := A.R.MIN_LOWSPD;                     A.M.RAMPCNT := ROUND ((A.M.HIGHSPD - A.M.LOWSPD)                                    / (A.R.MAX_HIGHSPD - A.R.MIN_LOWSPD)                                    * A.R.MAX_RAMPCNT);                     END;                END  (* IF accelerated speed possible *)           ELSE BEGIN                A.M.ACCELST := FALSE;                A.M.SPEED := ROUND (A.M.STEPCNT / TIME);                END; (* IF constant speed possible *)           END; (* IF scaled speed possible *)   END;    (* IF non-zero time *)END;(* SCALE-RAMP does a post-SCALE-SPEED ramp count scaling computation(* (before Initialization) of Live-Action tapered motion. *){ (* do not use -- refers to A.P parameter table *)Procedure Scale_Ramp (Var A : Axis_Table);Const Max_Ramp = (* 4000; *)           (* STD bus MCPU *)                 MaxInt;               (* Compumotor *)Begin   If A.P.Taper And A.M.AccelSt      Then With A Do           begin           M.RampCnt := Round ((P.Accel/100.0) * M.StepCnt);           If M.RampCnt > Max_Ramp              Then M.RampCnt := Max_Ramp           Else If M.RampCnt < 3                Then M.RampCnt := 3;           end;End;}(* SYNC GO MOTION synchronizes all axis motor speeds(* to the same overall running time. *)Procedure Sync_GoMo_All;Var Running_Time : Real;    Running_Distance : Real;Begin   If Streaked_Exposures      Then Running_Time := Preset_Count * Exposure_Time      Else Running_Time := Screen_Time;   For I := 1 to Min_Axes Do       With AA [I] Do            If Spec AND NOT M.Error               Then begin               Running_Distance := ABS (Get_Pt (I, XYno) - Get_Pt (I, 0));               Convert (Running_Distance, K.Kscale, M.StepCnt);               Scale_Speed (Running_Time, AA [I]);               M.StepCnt := 0;               end;End;(* COMPUTE GO MOTION computes the streak times here. *)Procedure Compute_GoMo_Streaks;Var Running_Time : Real;    Longest_Time : Real;    Running_Speed : Real;Begin   Longest_Time := 0.0;   For I := 1 to Min_Axes Do       With AA [I] Do            If Spec AND (NOT M.Error)               Then begin               If M.AccelSt                  Then Running_Speed := M.HighSpd                  Else Running_Speed := M.Speed;               If Running_Speed = 0.0                  Then Running_Time := 0.0                  Else Running_Time := ABS (M.StepCnt / Running_Speed);               If Running_Time > Longest_Time                  Then Longest_Time := Running_Time;               end;   If Streaked_Exposures      Then Exposure_Time := Longest_Time;End;(* Alignment aligns all axes into positions. *)(* Aligns according to Interpolated Points. *)Procedure Align_Point (P : Integer);Var Distance : Real;    I : Integer;Begin   Get_Axis_Updates;   For I := 1 to Min_Axes Do       With AA [I] Do            begin            If Spec AND NOT M.Error               Then Distance := Get_Pt (I, P) - K.Cur_Posn               Else Distance := 0.0;            Convert (Distance, K.Kscale, M.StepCnt);            PrepM (M);            end;   RunAll;   Local_WaitOver_Delay;   Local_WaitOver;   Get_Axis_Updates;End;(**********************)(* Run Stop/Go Motion runs the plot in memory a single frame at a time. *)Procedure Run_Go_Motion;Var Distance : Real;    Quit_Stop_Motion : Boolean;    Answer : Word;    FS : String;    Dialog: PDialog;    FrameData : Array [1..3] of String [40];    XS, YS, ZS, RS : String [10];Procedure Load_Status_Display;var  R: TRect;  The_Dialog : PView;begin  R.Assign (15, 3, 65, 15);  Dialog := New(PDialog, Init(R, 'Running Status'));  with Dialog^ do  begin    R.Assign (4, 2, 18, 3);    Insert (New (PStaticText,      Init (R, 'Frame Count = ')));    R.Assign (18, 2, 25, 3);    The_Dialog := New (PInputLine, Init (R, 40));    Insert (The_Dialog);    R.Assign (8, 4, 45, 5);    Insert (New (PStaticText, Init (R,      'Axis XX   Axis YY   Axis ZZ   Axis RR')));    R.Assign (4, 5, 46, 6);    The_Dialog := New (PInputLine, Init (R, 40));    Insert (The_Dialog);    R.Assign (27, 2, 38, 3);    Insert (New (PStaticText,      Init (R, 'Exp Time = ')));    R.Assign (38, 2, 46, 3);    The_Dialog := New (PInputLine, Init (R, 40));    Insert (The_Dialog);    If Single_Framed       Then begin            R.Assign (10, 8, 21, 10);            Insert (New(PButton, Init(R, '~S~hoot', cmOk, bfDefault)));            R.Assign (30, 8, 40, 10);            Insert (New(PButton, Init(R, '~Q~uit', cmCancel, bfNormal)));            SelectNext (True);            end       Else begin            R.Assign (17, 8, 35, 10);            Insert (New(PButton, Init(R, '~I~nterrupt', cmOk, bfDefault)));            end;  end;  Str (Frame_Count, FrameData [1]);  (* Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);  (* Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);  (* Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);  (* Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS); *)  Reconvert_All;  Str (AA [XX].K.Cur_Posn:10:AA[XX].K.dp, XS);  Str (AA [YY].K.Cur_Posn:10:AA[YY].K.dp, YS);  Str (AA [ZZ].K.Cur_Posn:10:AA[ZZ].K.dp, ZS);  Str (AA [RR].K.Cur_Posn:10:AA[RR].K.dp, RS);  FrameData [2] := XS + YS + ZS + RS;  Str (Exposure_Time:5:2, FrameData [3]);  Dialog^.SetData (FrameData);  If NOT Single_Framed     Then Desktop^.Insert (Dialog);end;Procedure Update_Status_Display;Begin  (* If NOT Single_Framed     Then Desktop^.Delete (Dialog); *)  Str (Frame_Count, FrameData [1]);  (* Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);  (* Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);  (* Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);  (* Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS); *)  Reconvert_All;  Str (AA [XX].K.Cur_Posn:10:AA[XX].K.dp, XS);  Str (AA [YY].K.Cur_Posn:10:AA[YY].K.dp, YS);  Str (AA [ZZ].K.Cur_Posn:10:AA[ZZ].K.dp, ZS);  Str (AA [RR].K.Cur_Posn:10:AA[RR].K.dp, RS);  FrameData [2] := XS + YS + ZS + RS;  Str (Exposure_Time:5:2, FrameData [3]);  Dialog^.SetData (FrameData);  If Single_Framed     Then Answer := Desktop^.ExecView (Dialog)     Else (* Desktop^.Insert (Dialog); *) Dialog^.Draw;End;Procedure Unload_Status_Display;Begin  Dispose (Dialog, Done);End;(* If Forward, Start at Frame = 0, End at Frame = XYno. *)(* If Reverse, Start at Frame = XYno, End at Frame = 0. *)BeginIf Go_Motion   Then begin   Sync_Gomo_All;   Init_Speeds;   Local_WaitOver;   end;Sequence_Over := False;Quit_Stop_Motion := False;Load_Status_Display;Repeat   Trigger_Pulse (Trigger [1]);   For I := 1 to Min_Axes Do       With AA [I] Do            begin            If Spec AND NOT M.Error               Then If EndPt < StartPt                    Then Distance := Get_Pt (I, Frame_Count-1) - Get_Pt (I, Frame_Count)                    Else Distance := Get_Pt (I, Frame_Count+1) - Get_Pt (I, Frame_Count)               Else Distance := 0.0;            Convert (Distance, K.Kscale, M.StepCnt);            PrepM (M);            end;   If Go_Motion      Then Compute_GoMo_Streaks;   Trigger_Pulse (Trigger [2]);   Camera_Exposure;   RunAll;{$IFDEF RGB_CONTROL}   Incr_RGB_Color (Frame_Count);{$ENDIF}   Trigger_Pulse (Trigger [3]);   Local_WaitOver_Delay;   Local_WaitOver;   Trigger_Pulse (Trigger [4]);   Trigger_Pulse (Trigger [5]);   If Sequence_Over      Then Quit_Stop_Motion := True;   If EndPt < StartPt      Then Dec (Frame_Count)      Else Inc (Frame_Count);   If (EndPt < StartPt) AND (Frame_Count < 1)   OR (EndPt > StartPt) AND (Frame_Count >= XYno)      Then Quit_Stop_Motion := True;   If NOT Quit_Stop_Motion      Then If Single_Framed           Then begin           Update_Status_Display;           If Answer = cmCancel              Then Quit_Stop_Motion := True;           end      Else Update_Status_Display;Until Quit_Stop_Motion;Unload_Status_Display;If Go_Motion   Then begin   Fast_Speeds;   Init_Speeds;   Local_WaitOver;   end;End;
+
+(* INIT SPEEDS initializes all axis motor speeds. *)
+{  (* use general version Init_Speeds *)
+Procedure Init_Speeds;
+
+Begin
+
+   For I := 1 to Min_Axes Do
+       With AA [I] Do
+            If Spec
+               Then If NOT M.Error
+                    Then InitM (M);
+End;
+}
+(* MAX OUT SPEED resets a single MCPU motor to its max default speed. *)
+
+PROCEDURE MAXOUT_SPEED (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   IF (* A.R.ACCEL *) TRUE              (* no wimps... *)
+      THEN BEGIN
+           A.M.ACCELST := TRUE;
+           A.M.LOWSPD  := A.R.MIN_LOWSPD;
+           A.M.HIGHSPD := A.R.MAX_HIGHSPD;
+           A.M.RAMPCNT := A.R.MAX_RAMPCNT;
+           A.M.RAMPK   := 0;
+           END
+      ELSE BEGIN
+           A.M.ACCELST := FALSE;
+           A.M.SPEED := A.R.MAX_SPEED;
+           END;
+END;
+
+(* FAST SPEEDS resets all specified MCPU motor speeds back to their
+(* maximum default values for fastest motor operations. *)
+{ (* use general version Fast_Speeds *)
+PROCEDURE FAST_SPEEDS;
+
+BEGIN
+
+   FOR I := 1 TO MIN_AXES DO
+       IF AA [I].SPEC
+          THEN MAXOUT_SPEED (AA [I]);
+END;
+}
+(* SCALE SPEED scales the max speeds according to the selected time. *)
+
+PROCEDURE SCALE_SPEED (VAR TIME : REAL; VAR A : AXIS_TABLE);
+
+VAR SPEED : REAL;
+
+BEGIN
+
+IF TIME = 0.0
+   THEN MAXOUT_SPEED (A)
+
+ELSE BEGIN
+
+   IF A.R.ACCEL
+      THEN SPEED := A.R.MAX_HIGHSPD
+      ELSE SPEED := A.R.MAX_SPEED;
+
+   IF SPEED < (A.M.STEPCNT / TIME)
+      THEN MAXOUT_SPEED (A)
+
+      ELSE BEGIN
+           IF A.R.ACCEL
+           THEN BEGIN
+                A.M.HIGHSPD := ROUND (A.M.STEPCNT / TIME);
+                IF A.M.HIGHSPD <= A.R.MIN_LOWSPD
+                THEN BEGIN
+                     A.M.ACCELST := FALSE;
+                     A.M.SPEED   := A.M.HIGHSPD;
+                     END
+                ELSE BEGIN
+                     A.M.RAMPK   := 0;
+                     A.M.ACCELST := TRUE;
+                     A.M.LOWSPD  := A.R.MIN_LOWSPD;
+                     A.M.RAMPCNT := ROUND ((A.M.HIGHSPD - A.M.LOWSPD)
+                                    / (A.R.MAX_HIGHSPD - A.R.MIN_LOWSPD)
+                                    * A.R.MAX_RAMPCNT);
+                     END;
+                END  (* IF accelerated speed possible *)
+
+           ELSE BEGIN
+                A.M.ACCELST := FALSE;
+                A.M.SPEED := ROUND (A.M.STEPCNT / TIME);
+                END; (* IF constant speed possible *)
+           END; (* IF scaled speed possible *)
+
+   END;    (* IF non-zero time *)
+
+END;
+
+(* SCALE-RAMP does a post-SCALE-SPEED ramp count scaling computation
+(* (before Initialization) of Live-Action tapered motion. *)
+{ (* do not use -- refers to A.P parameter table *)
+Procedure Scale_Ramp (Var A : Axis_Table);
+
+Const Max_Ramp = (* 4000; *)           (* STD bus MCPU *)
+                 MaxInt;               (* Compumotor *)
+
+Begin
+
+   If A.P.Taper And A.M.AccelSt
+      Then With A Do
+           begin
+           M.RampCnt := Round ((P.Accel/100.0) * M.StepCnt);
+           If M.RampCnt > Max_Ramp
+              Then M.RampCnt := Max_Ramp
+           Else If M.RampCnt < 3
+                Then M.RampCnt := 3;
+           end;
+End;
+}
+
+(* SYNC GO MOTION synchronizes all axis motor speeds
+(* to the same overall running time. *)
+
+Procedure Sync_GoMo_All;
+
+Var Running_Time : Real;
+    Running_Distance : Real;
+Begin
+
+   If Streaked_Exposures
+      Then Running_Time := Preset_Count * Exposure_Time
+      Else Running_Time := Screen_Time;
+
+   For I := 1 to Min_Axes Do
+       With AA [I] Do
+            If Spec AND NOT M.Error
+               Then begin
+               Running_Distance := ABS (Get_Pt (I, XYno) - Get_Pt (I, 0));
+               Convert (Running_Distance, K.Kscale, M.StepCnt);
+               Scale_Speed (Running_Time, AA [I]);
+               M.StepCnt := 0;
+               end;
+End;
+
+(* COMPUTE GO MOTION computes the streak times here. *)
+
+Procedure Compute_GoMo_Streaks;
+
+Var Running_Time : Real;
+    Longest_Time : Real;
+    Running_Speed : Real;
+
+Begin
+
+   Longest_Time := 0.0;
+   For I := 1 to Min_Axes Do
+       With AA [I] Do
+            If Spec AND (NOT M.Error)
+               Then begin
+               If M.AccelSt
+                  Then Running_Speed := M.HighSpd
+                  Else Running_Speed := M.Speed;
+               If Running_Speed = 0.0
+                  Then Running_Time := 0.0
+                  Else Running_Time := ABS (M.StepCnt / Running_Speed);
+               If Running_Time > Longest_Time
+                  Then Longest_Time := Running_Time;
+               end;
+   If Streaked_Exposures
+      Then Exposure_Time := Longest_Time;
+
+End;
+
+(* Alignment aligns all axes into positions. *)
+(* Aligns according to Interpolated Points. *)
+
+Procedure Align_Point (P : Integer);
+
+Var Distance : Real;
+    I : Integer;
+
+Begin
+
+   Get_Axis_Updates;
+
+   For I := 1 to Min_Axes Do
+       With AA [I] Do
+            begin
+            If Spec AND NOT M.Error
+               Then Distance := Get_Pt (I, P) - K.Cur_Posn
+               Else Distance := 0.0;
+            Convert (Distance, K.Kscale, M.StepCnt);
+            PrepM (M);
+            end;
+   RunAll;
+   Local_WaitOver_Delay;
+   Local_WaitOver;
+
+   Get_Axis_Updates;
+
+End;
+
+(**********************)
+
+(* Run Stop/Go Motion runs the plot in memory a single frame at a time. *)
+
+Procedure Run_Go_Motion;
+
+Var Distance : Real;
+    Quit_Stop_Motion : Boolean;
+    Answer : Word;
+    FS : String;
+    Dialog: PDialog;
+    FrameData : Array [1..3] of String [40];
+    XS, YS, ZS, RS : String [10];
+
+Procedure Load_Status_Display;
+var
+  R: TRect;
+  The_Dialog : PView;
+begin
+  R.Assign (15, 3, 65, 15);
+  Dialog := New(PDialog, Init(R, 'Running Status'));
+  with Dialog^ do
+  begin
+    R.Assign (4, 2, 18, 3);
+    Insert (New (PStaticText,
+      Init (R, 'Frame Count = ')));
+    R.Assign (18, 2, 25, 3);
+    The_Dialog := New (PInputLine, Init (R, 40));
+    Insert (The_Dialog);
+    R.Assign (8, 4, 45, 5);
+    Insert (New (PStaticText, Init (R,
+      'Axis XX   Axis YY   Axis ZZ   Axis RR')));
+    R.Assign (4, 5, 46, 6);
+    The_Dialog := New (PInputLine, Init (R, 40));
+    Insert (The_Dialog);
+    R.Assign (27, 2, 38, 3);
+    Insert (New (PStaticText,
+      Init (R, 'Exp Time = ')));
+    R.Assign (38, 2, 46, 3);
+    The_Dialog := New (PInputLine, Init (R, 40));
+    Insert (The_Dialog);
+    If Single_Framed
+       Then begin
+            R.Assign (10, 8, 21, 10);
+            Insert (New(PButton, Init(R, '~S~hoot', cmOk, bfDefault)));
+            R.Assign (30, 8, 40, 10);
+            Insert (New(PButton, Init(R, '~Q~uit', cmCancel, bfNormal)));
+            SelectNext (True);
+            end
+       Else begin
+            R.Assign (17, 8, 35, 10);
+            Insert (New(PButton, Init(R, '~I~nterrupt', cmOk, bfDefault)));
+            end;
+  end;
+
+  Str (Frame_Count, FrameData [1]);
+  (* Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);
+  (* Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);
+  (* Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);
+  (* Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS); *)
+  Reconvert_All;
+  Str (AA [XX].K.Cur_Posn:10:AA[XX].K.dp, XS);
+  Str (AA [YY].K.Cur_Posn:10:AA[YY].K.dp, YS);
+  Str (AA [ZZ].K.Cur_Posn:10:AA[ZZ].K.dp, ZS);
+  Str (AA [RR].K.Cur_Posn:10:AA[RR].K.dp, RS);
+  FrameData [2] := XS + YS + ZS + RS;
+  Str (Exposure_Time:5:2, FrameData [3]);
+  Dialog^.SetData (FrameData);
+  If NOT Single_Framed
+     Then Desktop^.Insert (Dialog);
+end;
+
+Procedure Update_Status_Display;
+Begin
+  (* If NOT Single_Framed
+     Then Desktop^.Delete (Dialog); *)
+  Str (Frame_Count, FrameData [1]);
+  (* Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);
+  (* Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);
+  (* Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);
+  (* Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS); *)
+  Reconvert_All;
+  Str (AA [XX].K.Cur_Posn:10:AA[XX].K.dp, XS);
+  Str (AA [YY].K.Cur_Posn:10:AA[YY].K.dp, YS);
+  Str (AA [ZZ].K.Cur_Posn:10:AA[ZZ].K.dp, ZS);
+  Str (AA [RR].K.Cur_Posn:10:AA[RR].K.dp, RS);
+  FrameData [2] := XS + YS + ZS + RS;
+  Str (Exposure_Time:5:2, FrameData [3]);
+  Dialog^.SetData (FrameData);
+  If Single_Framed
+     Then Answer := Desktop^.ExecView (Dialog)
+     Else (* Desktop^.Insert (Dialog); *) Dialog^.Draw;
+End;
+
+Procedure Unload_Status_Display;
+Begin
+  Dispose (Dialog, Done);
+End;
+
+(* If Forward, Start at Frame = 0, End at Frame = XYno. *)
+(* If Reverse, Start at Frame = XYno, End at Frame = 0. *)
+
+Begin
+
+If Go_Motion
+   Then begin
+   Sync_Gomo_All;
+   Init_Speeds;
+   Local_WaitOver;
+   end;
+
+Sequence_Over := False;
+Quit_Stop_Motion := False;
+
+Load_Status_Display;
+
+Repeat
+
+   Trigger_Pulse (Trigger [1]);
+
+   For I := 1 to Min_Axes Do
+       With AA [I] Do
+            begin
+            If Spec AND NOT M.Error
+               Then If EndPt < StartPt
+                    Then Distance := Get_Pt (I, Frame_Count-1) - Get_Pt (I, Frame_Count)
+                    Else Distance := Get_Pt (I, Frame_Count+1) - Get_Pt (I, Frame_Count)
+               Else Distance := 0.0;
+            Convert (Distance, K.Kscale, M.StepCnt);
+            PrepM (M);
+            end;
+   If Go_Motion
+      Then Compute_GoMo_Streaks;
+
+   Trigger_Pulse (Trigger [2]);
+   Camera_Exposure;
+   RunAll;
+{$IFDEF RGB_CONTROL}
+   Incr_RGB_Color (Frame_Count);
+{$ENDIF}
+   Trigger_Pulse (Trigger [3]);
+   Local_WaitOver_Delay;
+   Local_WaitOver;
+   Trigger_Pulse (Trigger [4]);
+   Trigger_Pulse (Trigger [5]);
+
+   If Sequence_Over
+      Then Quit_Stop_Motion := True;
+
+   If EndPt < StartPt
+      Then Dec (Frame_Count)
+      Else Inc (Frame_Count);
+
+   If (EndPt < StartPt) AND (Frame_Count < 1)
+   OR (EndPt > StartPt) AND (Frame_Count >= XYno)
+      Then Quit_Stop_Motion := True;
+
+   If NOT Quit_Stop_Motion
+      Then If Single_Framed
+           Then begin
+           Update_Status_Display;
+           If Answer = cmCancel
+              Then Quit_Stop_Motion := True;
+           end
+      Else Update_Status_Display;
+
+Until Quit_Stop_Motion;
+
+Unload_Status_Display;
+
+If Go_Motion
+   Then begin
+   Fast_Speeds;
+   Init_Speeds;
+   Local_WaitOver;
+   end;
+
+End;
+
+

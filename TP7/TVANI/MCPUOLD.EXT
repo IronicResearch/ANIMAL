@@ -1,1 +1,510 @@
-(* Animal Motion Control routines. *)(* Compumotor 1200 hardware with limited capabilities. *)(* Uses all Animal axes now, instead of just Point-Plotter axes. *)(* GET ALL gets the set of axis positions from the MCPU. *)(* Gets Status reports AND Position reports -- risky for Compumotor 1200. *)PROCEDURE GETALL;BEGIN   FOR I := 1 TO Max_Axes DO                  (* Status block *)       WITH AA [I] DO            IF SPEC               THEN If Not M.Error                    Then (* STATX (M); *) begin                    GetCount_1200 (M);                    If M.Error = True                       Then M.Error := False;                    If M.Stat = '?'                       Then begin                       OutCmd (' ');                       OutCmd ('K');                       OutCmd (^M );                       GetCount_1200 (M);                       end;                    end;END;(* RUN ALL runs the set of MCPU axes synchronously. *)PROCEDURE RUNALL;VAR ChStr : String;BEGIN   (* OUTCMD ('D');                        (* pre-Drive all null *)   (* OUTCMD ('0'); *)   OUTCMD (' ');   (**********)   OutCmd ('K');                           (* HEY, I'm talkin to YOU *)   OutCmd (^M );   (**********)   FOR I := 1 TO Min_Axes DO                  (* Drive block *)       WITH AA [I] DO            IF SPEC               THEN If Not M.Error                    Then RUNX (M);   For I := 1 to Min_Axes Do       With AA [I] Do            If Spec               Then If Not M.Error                    Then begin                         IntStr (M.MotorNo, ChStr);                         OutStr (ChStr);                         OutCmd ('G');                         OutCmd (^M );                         end;END;(* WaitOver Delay computes how long to wait until over. *)Procedure Local_WaitOver_Delay;Const Max_Safe_Time = 3.0;             (* max safe time to wait *)Var   Max_Run_Time : Real;             (* max running time til over *)      Run_Time : Real;                 (* running time til over *)      Run_Speed : Real;Begin   Max_Run_Time := 0.0;   For I := 1 to Max_Axes Do       With AA [I] Do            If Spec AND NOT M.Error               Then begin               If M.AccelSt                  Then Run_Speed := M.HighSpd                  Else Run_Speed := M.Speed;               If Run_Speed = 0.0                  Then Run_Time := 0.0                  Else Run_Time := ABS (M.StepCnt / Run_Speed);               If Run_Time > Max_Run_Time                  Then Max_Run_Time := Run_Time;               end;   If Max_Run_Time > Max_Safe_Time      Then Max_Run_Time := Max_Safe_Time;   (* Delay (Round (Max_Run_Time * 1000.0)); *)End;(* Local WaitOver using Turbo Vision screens. *)(* Uses same procedures and global variables as MCPU.WaitOver. *)(* Loop for Status reports only, not Position reports. *)Procedure Local_WaitOver;Var Sample_Time : Integer;             (* MCPU communications sampling *)Var Move_Status : Boolean;             (* motors moving status *)    Answer : Word;Begin   Sample_Time := Mcpu_Delay + 1;   Move_Status := False;   Repeat      Repeat         Delay (Sample_Time);         (* GetAll; *)         Move_Status := False;         For I := 1 to Max_Axes Do             With AA [I] Do             If Spec AND NOT M.Error                Then begin                GetStat (M);                Move_Status := Move_Status OR Decode_Motion (M);                (* If M.Stat = 'S'                   Then Write (^G); *)                If NOT (M.Stat in ['R','B'])                   Then Write (^G);                If M.Error = True                   Then M.Error := False;                end;         (* Sample_Time := Round (Exposure_Time * 1000) + Mcpu_Delay + 1; *)      Until User_Interrupt OR NOT Move_Status;      If User_Interrupt         Then begin         Answer := MessageBox ('Kill Motion Control Sequence?', Nil,            mfWarning + mfYesbutton + mfNobutton + mfCancelbutton);         If Answer = cmYes            Then Kill_Sequence;         If Answer <> cmNo            Then Clear_Sequence;      end;   Until Sequence_Over OR NOT Move_Status;End;(***** conventional motion control operations *****)(* Run Alignment Homing procedure. *)Procedure Run_Alignment;Var O : Integer;                       (* alignment order *)    Answer : Word;    Quit_Alignment : Boolean;          (* local interruption flag *)BeginSequence_Over := False;                (* global interruption flag *)Quit_Alignment := False;For O := 1 to Max_Axes Do    For I := 1 to Max_Axes Do        With AA [I] Do        If Spec And H.Spec           Then If H.Order = O                Then If NOT Quit_Alignment                     Then begin                     Sequence_Over := False;                     M.Dir := H.Limit;                     HomeM (M);                     Local_WaitOver_Delay;                     Local_WaitOver;                     If Sequence_Over                        Then begin                        Answer := MessageBox ('Quit Alignment Procedure?', Nil,                           mfWarning + mfYesbutton + mfNobutton);                        Quit_Alignment := (Answer = cmYes);                        end;                     If NOT Quit_Alignment                        Then begin                        Sequence_Over := False;                        M.Dir := H.Align;                        M.StepCnt := H.Count;                        RunM (M);                        Local_WaitOver_Delay;                        Local_WaitOver;                        If Sequence_Over                           Then begin                           Answer := MessageBox ('Quit Alignment Procedure?', Nil,                              mfWarning + mfYesbutton + mfNobutton);                           Quit_Alignment := (Answer = cmYes);                           end;                        end;                     If NOT Quit_Alignment                        Then ZeroM (M);                     end;End;(********************************)(* Alignment aligns all axes into positions. *)(* Aligns according to Key-Frame Points, not Interpolated Points. *)Procedure Align_Plot (P : Integer);Var Distance : Real;    I : Integer;Begin   Get_Axis_Updates;   For I := 1 to Max_Axes Do       With AA [I] Do            begin            If Spec               Then Distance := Key [P] - K.Cur_Posn               Else Distance := 0.0;            Convert (Distance, K.Kscale, M.StepCnt);            PrepM (M);            end;   RunAll;   (* WaitBack; *)   Local_WaitOver_Delay;   Local_WaitOver;   Get_Axis_Updates;End;(* Camera Exposure fires a trigger out the external port. *)Procedure Camera_Exposure;BeginEnd;(* Run Stop Motion runs the plot in memory a single frame at a time. *)Procedure Run_Stop_Motion;Var Distance : Real;    Quit_Stop_Motion : Boolean;    Answer : Word;    FS : String;    Dialog: PDialog;    FrameData : Array [1..2] of String [40];    XS, YS, ZS, RS : String [10];Procedure Load_Status_Display;var  R: TRect;  The_Dialog : PView;begin  R.Assign (15, 3, 65, 15);  Dialog := New(PDialog, Init(R, 'Running Status'));  with Dialog^ do  begin    R.Assign (10, 2, 25, 3);    Insert (New (PStaticText,      Init (R, 'Frame Count = ')));    R.Assign (25, 2, 40, 3);    The_Dialog := New (PInputLine, Init (R, 40));    Insert (The_Dialog);    R.Assign (8, 4, 45, 5);    Insert (New (PStaticText, Init (R,      'Axis XX   Axis YY   Axis ZZ   Axis RR')));    R.Assign (4, 5, 46, 6);    The_Dialog := New (PInputLine, Init (R, 40));    Insert (The_Dialog);    If Single_Framed       Then begin            R.Assign (10, 8, 21, 10);            Insert (New(PButton, Init(R, '~S~hoot', cmOk, bfDefault)));            R.Assign (30, 8, 40, 10);            Insert (New(PButton, Init(R, '~Q~uit', cmCancel, bfNormal)));            SelectNext (True);            end       Else begin            R.Assign (17, 8, 35, 10);            Insert (New(PButton, Init(R, '~I~nterrupt', cmOk, bfDefault)));            end;  end;  If StartPt < EndPt     Then FrameData [1] := '0'     Else Str (Frame_Count, FrameData [1]);  Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);  Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);  Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);  Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS);  FrameData [2] := XS + YS + ZS + RS;  Dialog^.SetData (FrameData);  If NOT Single_Framed     Then Desktop^.Insert (Dialog);end;Procedure Update_Status_Display;Begin  If NOT Single_Framed     Then Desktop^.Delete (Dialog);  Str (Frame_Count, FrameData [1]);  Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);  Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);  Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);  Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS);  FrameData [2] := XS + YS + ZS + RS;  Dialog^.SetData (FrameData);  If Single_Framed     Then Answer := Desktop^.ExecView (Dialog)     Else Desktop^.Insert (Dialog);End;Procedure Unload_Status_Display;Begin  Dispose (Dialog, Done);End;(* If Forward, Start at Frame = 0, End at Frame = XYno. *)(* If Reverse, Start at Frame = XYno, End at Frame = 0. *)BeginSequence_Over := False;Quit_Stop_Motion := False;Load_Status_Display;Repeat   Trigger_Pulse (Trigger [1]);   Trigger_Pulse (Trigger [2]);   Camera_Exposure;   Trigger_Pulse (Trigger [3]);   For I := 1 to Max_Axes Do       With AA [I] Do            begin            If Spec               Then If EndPt < StartPt                    Then Distance := Get_Pt (I, Frame_Count-1) - Get_Pt (I, Frame_Count)                    Else Distance := Get_Pt (I, Frame_Count+1) - Get_Pt (I, Frame_Count)               Else Distance := 0.0;            Convert (Distance, K.Kscale, M.StepCnt);            PrepM (M);            end;   Trigger_Pulse (Trigger [4]);   RunAll;   Local_WaitOver_Delay;   Local_WaitOver;   Trigger_Pulse (Trigger [5]);   If Sequence_Over      Then Quit_Stop_Motion := True;   If EndPt < StartPt      Then Dec (Frame_Count)      Else Inc (Frame_Count);   If (EndPt < StartPt) AND (Frame_Count < 1)   OR (EndPt > StartPt) AND (Frame_Count >= XYno)      Then Quit_Stop_Motion := True;   If NOT Quit_Stop_Motion      Then If Single_Framed           Then begin           (* Str (Frame_Count:1, FS); *)           (* Answer := MessageBox ('Single Frame Count = ' + FS, Nil,              mfInformation + mfOkbutton + mfCancelbutton); *)           Update_Status_Display;           (* Quit_Stop_Motion := (Answer = cmCancel); *)           If Answer = cmCancel              Then Quit_Stop_Motion := True;           end      Else Update_Status_Display;Until Quit_Stop_Motion;Unload_Status_Display;End;(* TimeM generates a time delay in the Compumotor hardware. *)Procedure TimeM (Var M : Motor_Table; Time : Real);Var ChStr : String;Begin   Str (M.MotorNo:1, ChStr);   OutStr (ChStr);                      (* unit # *)   OutCmd ('T');                        (* Time Delay *)   Str (Time:5:3, ChStr);   OutStr (ChStr);   OutCmd (' ');End;(* Pre-Run-Plot runs the non-real-time axes with regular motion control. *)Procedure Pre_Run_Plot;(* MoveM runs the motor by the synchronized time interval. *)Procedure MoveM (Index : Integer; Time, Distance : Real);Begin   With AA [Index] Do begin        Convert (Distance, K.Kscale, M.StepCnt);        PrepM (M);        M.HighSpd := Round (Abs (M.StepCnt) / Time);        M.RampCnt := Round ((M.HighSpd / R.Max_HighSpd) * R.Max_RampCnt);        InitM (M);        RunM  (M);        end;End;(* Load-N-Go computes the distance and velocity for running in 'real-time'. *)(* Scan for duplicate points if 3+ key-frame points. *)(* Generate time delays if freeze frames between duplicate points. *)Procedure Load_N_Go (I : Integer);Var Distance : Real;    Time : Real;    F : Integer;Begin   If KeyNo > 2      Then begin      With AA [I] Do      If EndPt > StartPt        Then For F := 1 to KeyNo-1 Do          If Key [F+1] = Key [F]             Then begin                  Time := Time_Key [F+1] - Time_Key [F];                  TimeM (M, Time);                  end             Else begin                  Distance := Key [F+1] - Key [F];                  Time := Time_Key [F+1] - Time_Key [F];                  MoveM (I, Time, Distance);                  end        Else For F := KeyNo downto 2 Do          If Key [F-1] = Key [F]             Then begin                  Time := Time_Key [F] - Time_Key [F-1];                  TimeM (M, Time);                  end             Else begin                  Distance := Key [F-1] - Key [F];                  Time := Time_Key [F] - Time_Key [F-1];                  MoveM (I, Time, Distance);                  end      end   Else If KeyNo = 2        Then begin        Distance := Get_Pt (I, EndPt) - Get_Pt (I, StartPt);        Time := Preset_Count / Frame_Rate; (* 30.0; *)        MoveM (I, Time, Distance);        end;End;Begin   (* Pre_Run_Plot *)   For I := 1 to Max_Axes Do       If I in [XX,YY,ZZ,RR]          Then If AA [I].Spec               Then Load_N_Go (I);End;(********************************)(* Initialize Compumotor PC 23. *)Procedure Init_PC23;BeginEnd;(* Enable Compumotor Joystick. *)Procedure Enable_Joystick;BeginEnd;(* Disable Compumotor Joystick. *)Procedure Disable_Joystick;BeginEnd;(* Enable special Zoom Lens motion control interface. *)Procedure Enable_Zoom_Lens;BeginEnd;Procedure Overide_Zoom_Lens;BeginEnd;(* Disable special Zoom Lens motion control interface. *)Procedure Disable_Zoom_Lens;BeginEnd;(* Read the Compumotor PC 23 trigger port. *)Procedure Get_Trigger (Var Status : Boolean);Begin   Status := False;End;(* Real-Time-Plot outputs position intervals in real-time,(* using Compumotor PC23 Timed-Data Streaming Mode. *)Procedure Real_Time_Plot;Begin   MessageBox ('Real-Time Motion is Not Available', Nil,      mfInformation + mfOkButton);End;
+(* Animal Motion Control routines. *)
+(* Compumotor 1200 hardware with limited capabilities. *)
+
+(* Uses all Animal axes now, instead of just Point-Plotter axes. *)
+(* GET ALL gets the set of axis positions from the MCPU. *)
+(* Gets Status reports AND Position reports -- risky for Compumotor 1200. *)
+
+PROCEDURE GETALL;
+
+BEGIN
+
+   FOR I := 1 TO Max_Axes DO                  (* Status block *)
+       WITH AA [I] DO
+            IF SPEC
+               THEN If Not M.Error
+                    Then (* STATX (M); *) begin
+                    GetCount_1200 (M);
+                    If M.Error = True
+                       Then M.Error := False;
+                    If M.Stat = '?'
+                       Then begin
+                       OutCmd (' ');
+                       OutCmd ('K');
+                       OutCmd (^M );
+                       GetCount_1200 (M);
+                       end;
+                    end;
+END;
+
+(* RUN ALL runs the set of MCPU axes synchronously. *)
+
+PROCEDURE RUNALL;
+
+VAR ChStr : String;
+
+BEGIN
+
+   (* OUTCMD ('D');                        (* pre-Drive all null *)
+   (* OUTCMD ('0'); *)
+   OUTCMD (' ');
+   (**********)
+   OutCmd ('K');                           (* HEY, I'm talkin to YOU *)
+   OutCmd (^M );
+   (**********)
+
+   FOR I := 1 TO Min_Axes DO                  (* Drive block *)
+       WITH AA [I] DO
+            IF SPEC
+               THEN If Not M.Error
+                    Then RUNX (M);
+
+   For I := 1 to Min_Axes Do
+       With AA [I] Do
+            If Spec
+               Then If Not M.Error
+                    Then begin
+                         IntStr (M.MotorNo, ChStr);
+                         OutStr (ChStr);
+                         OutCmd ('G');
+                         OutCmd (^M );
+                         end;
+END;
+
+(* WaitOver Delay computes how long to wait until over. *)
+
+Procedure Local_WaitOver_Delay;
+
+Const Max_Safe_Time = 3.0;             (* max safe time to wait *)
+Var   Max_Run_Time : Real;             (* max running time til over *)
+      Run_Time : Real;                 (* running time til over *)
+      Run_Speed : Real;
+Begin
+
+   Max_Run_Time := 0.0;
+   For I := 1 to Max_Axes Do
+       With AA [I] Do
+            If Spec AND NOT M.Error
+               Then begin
+               If M.AccelSt
+                  Then Run_Speed := M.HighSpd
+                  Else Run_Speed := M.Speed;
+               If Run_Speed = 0.0
+                  Then Run_Time := 0.0
+                  Else Run_Time := ABS (M.StepCnt / Run_Speed);
+               If Run_Time > Max_Run_Time
+                  Then Max_Run_Time := Run_Time;
+               end;
+   If Max_Run_Time > Max_Safe_Time
+      Then Max_Run_Time := Max_Safe_Time;
+
+   (* Delay (Round (Max_Run_Time * 1000.0)); *)
+
+End;
+
+(* Local WaitOver using Turbo Vision screens. *)
+(* Uses same procedures and global variables as MCPU.WaitOver. *)
+(* Loop for Status reports only, not Position reports. *)
+
+Procedure Local_WaitOver;
+
+Var Sample_Time : Integer;             (* MCPU communications sampling *)
+Var Move_Status : Boolean;             (* motors moving status *)
+    Answer : Word;
+
+Begin
+
+   Sample_Time := Mcpu_Delay + 1;
+   Move_Status := False;
+   Repeat
+      Repeat
+         Delay (Sample_Time);
+         (* GetAll; *)
+         Move_Status := False;
+         For I := 1 to Max_Axes Do
+             With AA [I] Do
+             If Spec AND NOT M.Error
+                Then begin
+                GetStat (M);
+                Move_Status := Move_Status OR Decode_Motion (M);
+                (* If M.Stat = 'S'
+                   Then Write (^G); *)
+                If NOT (M.Stat in ['R','B'])
+                   Then Write (^G);
+                If M.Error = True
+                   Then M.Error := False;
+                end;
+         (* Sample_Time := Round (Exposure_Time * 1000) + Mcpu_Delay + 1; *)
+      Until User_Interrupt OR NOT Move_Status;
+      If User_Interrupt
+         Then begin
+         Answer := MessageBox ('Kill Motion Control Sequence?', Nil,
+            mfWarning + mfYesbutton + mfNobutton + mfCancelbutton);
+         If Answer = cmYes
+            Then Kill_Sequence;
+         If Answer <> cmNo
+            Then Clear_Sequence;
+      end;
+   Until Sequence_Over OR NOT Move_Status;
+
+End;
+
+(***** conventional motion control operations *****)
+
+(* Run Alignment Homing procedure. *)
+
+Procedure Run_Alignment;
+
+Var O : Integer;                       (* alignment order *)
+    Answer : Word;
+    Quit_Alignment : Boolean;          (* local interruption flag *)
+
+Begin
+
+Sequence_Over := False;                (* global interruption flag *)
+Quit_Alignment := False;
+
+For O := 1 to Max_Axes Do
+    For I := 1 to Max_Axes Do
+        With AA [I] Do
+        If Spec And H.Spec
+           Then If H.Order = O
+                Then If NOT Quit_Alignment
+                     Then begin
+                     Sequence_Over := False;
+                     M.Dir := H.Limit;
+                     HomeM (M);
+                     Local_WaitOver_Delay;
+                     Local_WaitOver;
+                     If Sequence_Over
+                        Then begin
+                        Answer := MessageBox ('Quit Alignment Procedure?', Nil,
+                           mfWarning + mfYesbutton + mfNobutton);
+                        Quit_Alignment := (Answer = cmYes);
+                        end;
+
+                     If NOT Quit_Alignment
+                        Then begin
+                        Sequence_Over := False;
+                        M.Dir := H.Align;
+                        M.StepCnt := H.Count;
+                        RunM (M);
+                        Local_WaitOver_Delay;
+                        Local_WaitOver;
+                        If Sequence_Over
+                           Then begin
+                           Answer := MessageBox ('Quit Alignment Procedure?', Nil,
+                              mfWarning + mfYesbutton + mfNobutton);
+                           Quit_Alignment := (Answer = cmYes);
+                           end;
+                        end;
+
+                     If NOT Quit_Alignment
+                        Then ZeroM (M);
+                     end;
+End;
+
+
+(********************************)
+
+(* Alignment aligns all axes into positions. *)
+(* Aligns according to Key-Frame Points, not Interpolated Points. *)
+
+Procedure Align_Plot (P : Integer);
+
+Var Distance : Real;
+    I : Integer;
+
+Begin
+
+   Get_Axis_Updates;
+
+   For I := 1 to Max_Axes Do
+       With AA [I] Do
+            begin
+            If Spec
+               Then Distance := Key [P] - K.Cur_Posn
+               Else Distance := 0.0;
+            Convert (Distance, K.Kscale, M.StepCnt);
+            PrepM (M);
+            end;
+   RunAll;
+   (* WaitBack; *)
+   Local_WaitOver_Delay;
+   Local_WaitOver;
+
+   Get_Axis_Updates;
+
+End;
+
+(* Camera Exposure fires a trigger out the external port. *)
+Procedure Camera_Exposure;
+Begin
+End;
+
+(* Run Stop Motion runs the plot in memory a single frame at a time. *)
+
+Procedure Run_Stop_Motion;
+
+Var Distance : Real;
+    Quit_Stop_Motion : Boolean;
+    Answer : Word;
+    FS : String;
+    Dialog: PDialog;
+    FrameData : Array [1..2] of String [40];
+    XS, YS, ZS, RS : String [10];
+
+Procedure Load_Status_Display;
+var
+  R: TRect;
+  The_Dialog : PView;
+begin
+  R.Assign (15, 3, 65, 15);
+  Dialog := New(PDialog, Init(R, 'Running Status'));
+  with Dialog^ do
+  begin
+    R.Assign (10, 2, 25, 3);
+    Insert (New (PStaticText,
+      Init (R, 'Frame Count = ')));
+    R.Assign (25, 2, 40, 3);
+    The_Dialog := New (PInputLine, Init (R, 40));
+    Insert (The_Dialog);
+    R.Assign (8, 4, 45, 5);
+    Insert (New (PStaticText, Init (R,
+      'Axis XX   Axis YY   Axis ZZ   Axis RR')));
+    R.Assign (4, 5, 46, 6);
+    The_Dialog := New (PInputLine, Init (R, 40));
+    Insert (The_Dialog);
+    If Single_Framed
+       Then begin
+            R.Assign (10, 8, 21, 10);
+            Insert (New(PButton, Init(R, '~S~hoot', cmOk, bfDefault)));
+            R.Assign (30, 8, 40, 10);
+            Insert (New(PButton, Init(R, '~Q~uit', cmCancel, bfNormal)));
+            SelectNext (True);
+            end
+       Else begin
+            R.Assign (17, 8, 35, 10);
+            Insert (New(PButton, Init(R, '~I~nterrupt', cmOk, bfDefault)));
+            end;
+  end;
+
+  If StartPt < EndPt
+     Then FrameData [1] := '0'
+     Else Str (Frame_Count, FrameData [1]);
+  Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);
+  Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);
+  Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);
+  Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS);
+  FrameData [2] := XS + YS + ZS + RS;
+  Dialog^.SetData (FrameData);
+  If NOT Single_Framed
+     Then Desktop^.Insert (Dialog);
+end;
+
+Procedure Update_Status_Display;
+Begin
+  If NOT Single_Framed
+     Then Desktop^.Delete (Dialog);
+  Str (Frame_Count, FrameData [1]);
+  Str (Get_Pt (XX, Frame_Count):10:AA[XX].K.dp, XS);
+  Str (Get_Pt (YY, Frame_Count):10:AA[YY].K.dp, YS);
+  Str (Get_Pt (ZZ, Frame_Count):10:AA[ZZ].K.dp, ZS);
+  Str (Get_Pt (RR, Frame_Count):10:AA[RR].K.dp, RS);
+  FrameData [2] := XS + YS + ZS + RS;
+  Dialog^.SetData (FrameData);
+  If Single_Framed
+     Then Answer := Desktop^.ExecView (Dialog)
+     Else Desktop^.Insert (Dialog);
+End;
+
+Procedure Unload_Status_Display;
+Begin
+  Dispose (Dialog, Done);
+End;
+
+(* If Forward, Start at Frame = 0, End at Frame = XYno. *)
+(* If Reverse, Start at Frame = XYno, End at Frame = 0. *)
+
+Begin
+
+Sequence_Over := False;
+Quit_Stop_Motion := False;
+
+Load_Status_Display;
+
+Repeat
+
+   Trigger_Pulse (Trigger [1]);
+   Trigger_Pulse (Trigger [2]);
+   Camera_Exposure;
+   Trigger_Pulse (Trigger [3]);
+
+   For I := 1 to Max_Axes Do
+       With AA [I] Do
+            begin
+            If Spec
+               Then If EndPt < StartPt
+                    Then Distance := Get_Pt (I, Frame_Count-1) - Get_Pt (I, Frame_Count)
+                    Else Distance := Get_Pt (I, Frame_Count+1) - Get_Pt (I, Frame_Count)
+               Else Distance := 0.0;
+            Convert (Distance, K.Kscale, M.StepCnt);
+            PrepM (M);
+            end;
+
+   Trigger_Pulse (Trigger [4]);
+   RunAll;
+   Local_WaitOver_Delay;
+   Local_WaitOver;
+   Trigger_Pulse (Trigger [5]);
+
+   If Sequence_Over
+      Then Quit_Stop_Motion := True;
+
+   If EndPt < StartPt
+      Then Dec (Frame_Count)
+      Else Inc (Frame_Count);
+
+   If (EndPt < StartPt) AND (Frame_Count < 1)
+   OR (EndPt > StartPt) AND (Frame_Count >= XYno)
+      Then Quit_Stop_Motion := True;
+
+   If NOT Quit_Stop_Motion
+      Then If Single_Framed
+           Then begin
+           (* Str (Frame_Count:1, FS); *)
+           (* Answer := MessageBox ('Single Frame Count = ' + FS, Nil,
+              mfInformation + mfOkbutton + mfCancelbutton); *)
+           Update_Status_Display;
+           (* Quit_Stop_Motion := (Answer = cmCancel); *)
+           If Answer = cmCancel
+              Then Quit_Stop_Motion := True;
+           end
+      Else Update_Status_Display;
+
+Until Quit_Stop_Motion;
+
+Unload_Status_Display;
+
+End;
+
+(* TimeM generates a time delay in the Compumotor hardware. *)
+
+Procedure TimeM (Var M : Motor_Table; Time : Real);
+
+Var ChStr : String;
+Begin
+
+   Str (M.MotorNo:1, ChStr);
+   OutStr (ChStr);                      (* unit # *)
+   OutCmd ('T');                        (* Time Delay *)
+   Str (Time:5:3, ChStr);
+   OutStr (ChStr);
+   OutCmd (' ');
+
+End;
+
+(* Pre-Run-Plot runs the non-real-time axes with regular motion control. *)
+
+Procedure Pre_Run_Plot;
+
+(* MoveM runs the motor by the synchronized time interval. *)
+Procedure MoveM (Index : Integer; Time, Distance : Real);
+Begin
+   With AA [Index] Do begin
+        Convert (Distance, K.Kscale, M.StepCnt);
+        PrepM (M);
+        M.HighSpd := Round (Abs (M.StepCnt) / Time);
+        M.RampCnt := Round ((M.HighSpd / R.Max_HighSpd) * R.Max_RampCnt);
+        InitM (M);
+        RunM  (M);
+        end;
+End;
+
+(* Load-N-Go computes the distance and velocity for running in 'real-time'. *)
+(* Scan for duplicate points if 3+ key-frame points. *)
+(* Generate time delays if freeze frames between duplicate points. *)
+Procedure Load_N_Go (I : Integer);
+Var Distance : Real;
+    Time : Real;
+    F : Integer;
+Begin
+
+   If KeyNo > 2
+      Then begin
+      With AA [I] Do
+      If EndPt > StartPt
+        Then For F := 1 to KeyNo-1 Do
+          If Key [F+1] = Key [F]
+             Then begin
+                  Time := Time_Key [F+1] - Time_Key [F];
+                  TimeM (M, Time);
+                  end
+             Else begin
+                  Distance := Key [F+1] - Key [F];
+                  Time := Time_Key [F+1] - Time_Key [F];
+                  MoveM (I, Time, Distance);
+                  end
+        Else For F := KeyNo downto 2 Do
+          If Key [F-1] = Key [F]
+             Then begin
+                  Time := Time_Key [F] - Time_Key [F-1];
+                  TimeM (M, Time);
+                  end
+             Else begin
+                  Distance := Key [F-1] - Key [F];
+                  Time := Time_Key [F] - Time_Key [F-1];
+                  MoveM (I, Time, Distance);
+                  end
+      end
+   Else If KeyNo = 2
+        Then begin
+        Distance := Get_Pt (I, EndPt) - Get_Pt (I, StartPt);
+        Time := Preset_Count / Frame_Rate; (* 30.0; *)
+        MoveM (I, Time, Distance);
+        end;
+End;
+
+Begin   (* Pre_Run_Plot *)
+
+   For I := 1 to Max_Axes Do
+       If I in [XX,YY,ZZ,RR]
+          Then If AA [I].Spec
+               Then Load_N_Go (I);
+End;
+
+(********************************)
+
+(* Initialize Compumotor PC 23. *)
+Procedure Init_PC23;
+Begin
+End;
+
+(* Enable Compumotor Joystick. *)
+Procedure Enable_Joystick;
+Begin
+End;
+
+(* Disable Compumotor Joystick. *)
+Procedure Disable_Joystick;
+Begin
+End;
+
+(* Enable special Zoom Lens motion control interface. *)
+Procedure Enable_Zoom_Lens;
+Begin
+End;
+
+Procedure Overide_Zoom_Lens;
+Begin
+End;
+
+(* Disable special Zoom Lens motion control interface. *)
+Procedure Disable_Zoom_Lens;
+Begin
+End;
+
+(* Read the Compumotor PC 23 trigger port. *)
+Procedure Get_Trigger (Var Status : Boolean);
+Begin
+   Status := False;
+End;
+
+(* Real-Time-Plot outputs position intervals in real-time,
+(* using Compumotor PC23 Timed-Data Streaming Mode. *)
+Procedure Real_Time_Plot;
+Begin
+   MessageBox ('Real-Time Motion is Not Available', Nil,
+      mfInformation + mfOkButton);
+End;
+

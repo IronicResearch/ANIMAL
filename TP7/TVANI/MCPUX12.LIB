@@ -1,1 +1,448 @@
-(* Common core MCPU sub-commands. *)(* For use in nested MCPU command block sequences. *)(* MCPU = Compumotor 1200/2100 series Motion Control System. *)(* 10-23-91 *)(* INITX pre-initializes an MCPU motor for either constant speed(* or ramped acceleration/deceleration operation. *)(* For use in nested MCPU 'Initialize' command block sequences. *)PROCEDURE INITX (VAR M : MOTOR_TABLE);VAR CHSTR : STRING;    NOSTR : STRING;    VELOCITY : REAL;    ACCELERATION : REAL;BEGIN   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)   NOSTR := CHSTR;   IF NOT M.ACCELST      THEN BEGIN           OUTSTR (NOSTR);              (* Unit # *)           OUTCMD ('V');                (* Velocity *)           VELOCITY := M.SPEED / STEPS_PER_REV;           IF VELOCITY < MIN_SPEED              THEN VELOCITY := MIN_SPEED           ELSE IF VELOCITY > MAX_SPEED              THEN VELOCITY := MAX_SPEED;           REALSTR (VELOCITY, CHSTR);           OUTSTR (CHSTR);           OUTCMD (' ');           OUTSTR (NOSTR);              (* Unit # *)           OUTCMD ('A');                (* Acceleration = max *)           ACCELERATION := MAX_ACCEL;           REALSTR (ACCELERATION, CHSTR);           OUTSTR (CHSTR);           OUTCMD (' ');           END      ELSE BEGIN           OUTSTR (NOSTR);              (* Unit # *)           OUTCMD ('V');                (* Velocity *)           VELOCITY := M.HIGHSPD / STEPS_PER_REV;           IF VELOCITY < MIN_SPEED              THEN VELOCITY := MIN_SPEED           ELSE IF VELOCITY > MAX_SPEED              THEN VELOCITY := MAX_SPEED;           REALSTR (VELOCITY, CHSTR);           OUTSTR (CHSTR);           OUTCMD (' ');           OUTSTR (NOSTR);              (* Unit # *)           OUTCMD ('A');                (* Acceleration *)           IF M.RAMPCNT = 0              THEN M.RAMPCNT := 1;           ACCELERATION := SQR (VELOCITY) / (M.RAMPCNT / STEPS_PER_REV);           IF ACCELERATION < MIN_ACCEL              THEN ACCELERATION := MIN_ACCEL           ELSE IF ACCELERATION > MAX_ACCEL              THEN ACCELERATION := MAX_ACCEL;           REALSTR (ACCELERATION, CHSTR);           OUTSTR (CHSTR);           OUTCMD (' ');           END;END;(* RUNX post-runs a pre-initialized MCPU motor with the minimum stepping(* information for synchronously activated motor axes. *)(* For use in nested MCPU 'Drive' command block sequences. *)(* Compumotor 1200 requires IBM computer to log cumulative positions. *)PROCEDURE RUNX (VAR M : MOTOR_TABLE);VAR CHSTR : STRING;    DISTANCE : REAL;BEGIN   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)   OUTSTR (CHSTR);   M.StepCnt := Abs (M.StepCnt);   OUTCMD ('D');                        (* Distance = step count *)   IF M.DIR = FWD      THEN OUTCMD ('+')                 (* Forward direction *)      ELSE OUTCMD ('-');                (* Reverse direction *)   DISTANCE := M.STEPCNT / STEPS_PER_REV;   IF DISTANCE < MIN_REVS / 2.0      THEN DISTANCE := 0.0   ELSE IF DISTANCE < MIN_REVS      THEN DISTANCE := MIN_REVS   ELSE IF DISTANCE > MAX_REVS      THEN DISTANCE := MAX_REVS;   REALSTR (DISTANCE, CHSTR);   OUTSTR (CHSTR);   OUTCMD (' ');   M.StepCnt := Distance * Steps_Per_Rev;   IF M.DIR = REV      THEN M.RUNCNT := -1.0 * M.STEPCNT      ELSE M.RUNCNT := M.STEPCNT;   If Not M.CompuMtr_2100      Then M.COUNT := M.COUNT + M.RUNCNT;        (* pre-compute 1200 *)END;(* DRIVEX drives an MCPU motor according to a step count, direction, and(* overiding constant or ramping speed, for immediate operation. *)(* For use in nested 'Drive' MCPU command block sequences. *)PROCEDURE DRIVEX (VAR M : MOTOR_TABLE);BEGIN   INITX (M);                           (* Initialize speed *)   RUNX (M);                            (* Run distance *)END;(* KILLX stops the specified motor in mid flight. *)(* For use in nested MCPU 'Kill' command block sequences. *)PROCEDURE KILLX (VAR M : MOTOR_TABLE);VAR CHSTR : STRING;BEGIN   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)   OUTSTR (CHSTR);   OUTCMD ('S');                        (* Stop *)   OUTCMD (' ');END;(* ZEROX zeroes out an MCPU axis step position. *)(* For use in nested MCPU 'Zero' command block sequences. *)PROCEDURE ZEROX (VAR M : MOTOR_TABLE);VAR CHSTR : STRING;BEGIN   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)   OUTSTR (CHSTR);   OUTCMD ('X');                        (* Zero *)   OUTCMD ('0');   OUTCMD (' ');   M.COUNT := 0.0;   M.RUNCNT := 0.0;END;(*****)(* CHECHOSIO checks for correctly echoed input of the output byte. *)Procedure ChEchoSio (EchoChar : char; var EchoStat : boolean);var SioStat : boolean;    SioChar : char;begin   Repeat      InSioSt (SioStat);      If SioStat         Then InSio (SioChar);   Until (SioStat and (SioChar = EchoChar));   EchoStat := (SioStat and (SioChar = EchoChar));end;(* TIMEOUTSIO times out any returned input byte. *)Procedure TimeOutSio (var TimeStat : boolean);const Loop_Time = 10000;var Tick : integer;    Tock : integer;    SioStat : boolean;begin   Tick := 0;   Repeat      InSioSt (SioStat);      Tick := Tick + 1;   Until (SioStat) or (Tick >= Loop_Time);   TimeStat := SioStat;end;(* GET STAT gets the current motion status of an MCPU axis. *)(* Note: Compumotor controller(s) echo all commands. *)(* Detect special Switch Status and beep warning. *)(* Note: Compumotor Switch status 'S' will be interpreted as(* Compumotor Stop command 'S' in communications daisy chain! *)(* Talk about high-priced bugs... And from Marin, too... *)PROCEDURE GETSTAT (VAR M : MOTOR_TABLE);VAR CHSTR : STRING;    CH : CHAR;    STATUS : BOOLEAN;    Ready : boolean;BEGIN   OutCmd (' ');                        (* pre-sync *)   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)   OUTSTR (CHSTR);   OUTCMD ('R');                        (* Read Status *)   ChEchoSio ('R', Ready);   If Ready Then OUTCMD (' ');   If Ready Then ChEchoSio (' ', Ready);   If Ready Then TimeOutSio (Status);   IF Ready and Status      THEN BEGIN           INSIO (CH);                  (* status character *)           M.STAT := CH;           TimeOutSIO (Status);           If Status Then           INSIO (CH);                  (* return character *)           M.ERROR := FALSE;           (* If M.Stat = 'S'              Then Write (^G);          (* Switch warning ? *)           END      ELSE BEGIN           M.STAT := 'E';               (* Error *)           M.ERROR := TRUE;           END;   If Not Ready Then ReSync_Mcpu;       (* re-sync *)END;(* GET COUNT gets the current step count of an axis from the MCPU. *)(* Response in particular sequential format: 10 characters at a time. *)(* Note: Compumotor controller(s) echo all commands. *)(* Compumotor 1200 requires IBM computer to log cummulative positions. *)(* Therefore position adjustments necessary for Kill and Jog commands. *)(* Compumotor 1200 does NOT respond to 'P' command until stopped moving! *)PROCEDURE GETCOUNT_1200 (VAR M : MOTOR_TABLE);VAR CHSTR : STRING;    D : INTEGER;    CH : CHAR;    STATUS : BOOLEAN;    POSITION : REAL;    Ready : boolean;    NoStr : String;BEGINGetStat (M);If (Not M.Error) And ((M.Stat = 'R') Or (M.Stat = 'S'))   Then begin   OutCmd (' ');                        (* pre-sync *)   INTSTR (M.MOTORNO, NoStr);           (* Unit # *)   OUTSTR (NoStr);   OUTCMD ('P');                        (* Position *)   ChEchoSio ('P', Ready);   If Ready Then OUTCMD (' ');   If Ready Then ChEchoSio (' ', Ready);   If Ready Then TimeOutSio (Status);   IF Ready and Status      THEN BEGIN           FOR D := 1 TO 10 DO               begin               TimeOutSIO (Status);               If Status Then               INSIO (CHSTR [D]);       (* sign + 9 digits *)               end;           TimeOutSIO (Status);           If Status Then           INSIO (CH);                  (* return *)           If Status              Then begin              CHSTR [0] := CHR (10);              STREAL (CHSTR, POSITION);              POSITION := POSITION * STEPS_PER_REV;              IF (M.RUNCNT <> 0.0)                 THEN IF (POSITION) <> (M.RUNCNT)                      THEN BEGIN                        If Not M.CompuMtr_2100                           Then M.COUNT := M.COUNT - M.RUNCNT + POSITION;                                                  (* post-adjust 1200 *)                        M.RUNCNT := 0.0;                        OutCmd (' ');                        OutStr (NoStr);                        OutCmd ('D');             (* Distance = 0 *)                        OutCmd ('0');                        OutCmd (' ');                        OutStr (NoStr);                        OutCmd ('G');             (* 'Go' Distance = 0 *)                        OutCmd (' ');                        END;              end              Else M.Stat := '?';           END      ELSE M.Stat  := '?';                        (* Error *)   If Not Ready Then ReSync_Mcpu;                 (* re-sync *)   end;   (* if 1200 is going to respond *)END;(* Compumotor 2100 series log cummulatve positions internally. *)PROCEDURE GETCOUNT_2100 (VAR M : MOTOR_TABLE);VAR CHSTR : STRING;    D : INTEGER;    CH : CHAR;    STATUS : BOOLEAN;    POSITION : REAL;    Ready : boolean;    NoStr : String;BEGIN   OutCmd (' ');                        (* pre-sync *)   INTSTR (M.MOTORNO, NoStr);           (* Unit # *)   OUTSTR (NoStr);   OUTCMD ('X');                        (* Position *)   ChEchoSio ('X', Ready);   If Ready Then OUTCMD ('1');   If Ready Then ChEchoSio ('1', Ready);   If Ready Then OUTCMD (' ');   If Ready Then ChEchoSio (' ', Ready);   If Ready Then TimeOutSio (Status);   IF Ready and Status      THEN BEGIN           FOR D := 1 TO 10 DO               begin               TimeOutSIO (Status);               If Status Then               INSIO (CHSTR [D]);       (* sign + 9 digits *)               end;           TimeOutSIO (Status);           If Status Then           INSIO (CH);                  (* return *)           If Status              Then begin              CHSTR [0] := CHR (10);              STREAL (CHSTR, POSITION);              POSITION := POSITION * STEPS_PER_REV;              M.COUNT := POSITION;              end              Else M.Stat := '?';           END      ELSE M.Stat  := '?';              (* Error *)   If Not Ready Then ReSync_Mcpu;       (* re-sync *)END;(* Compumotor 2100 series uses hardware positioning. *)(* Compumotor 1200 series uses software positioning. *)PROCEDURE GETCOUNT (VAR M : MOTOR_TABLE);BEGINIf Not M.Error   Then If M.Compumtr_2100           Then GETCOUNT_2100 (M)           Else GETCOUNT_1200 (M);END;(* GETX gets the status and position data from the MCPU, ready or not. *)PROCEDURE GETX (VAR M : MOTOR_TABLE);BEGIN   GETSTAT (M);   IF NOT M.ERROR      THEN GETCOUNT (M);END;(* STATX gets the current status and step count of an MCPU axis. *)(* For use in nested MCPU 'Status' command block sequences. *)PROCEDURE STATX (VAR M : MOTOR_TABLE);BEGIN   GETX (M);END;
+
+(* Common core MCPU sub-commands. *)
+(* For use in nested MCPU command block sequences. *)
+
+(* MCPU = Compumotor 1200/2100 series Motion Control System. *)
+(* 10-23-91 *)
+
+(* INITX pre-initializes an MCPU motor for either constant speed
+(* or ramped acceleration/deceleration operation. *)
+(* For use in nested MCPU 'Initialize' command block sequences. *)
+
+PROCEDURE INITX (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+    NOSTR : STRING;
+    VELOCITY : REAL;
+    ACCELERATION : REAL;
+
+BEGIN
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   NOSTR := CHSTR;
+
+   IF NOT M.ACCELST
+
+      THEN BEGIN
+           OUTSTR (NOSTR);              (* Unit # *)
+           OUTCMD ('V');                (* Velocity *)
+           VELOCITY := M.SPEED / STEPS_PER_REV;
+           IF VELOCITY < MIN_SPEED
+              THEN VELOCITY := MIN_SPEED
+           ELSE IF VELOCITY > MAX_SPEED
+              THEN VELOCITY := MAX_SPEED;
+           REALSTR (VELOCITY, CHSTR);
+           OUTSTR (CHSTR);
+           OUTCMD (' ');
+
+           OUTSTR (NOSTR);              (* Unit # *)
+           OUTCMD ('A');                (* Acceleration = max *)
+           ACCELERATION := MAX_ACCEL;
+           REALSTR (ACCELERATION, CHSTR);
+           OUTSTR (CHSTR);
+           OUTCMD (' ');
+           END
+
+      ELSE BEGIN
+           OUTSTR (NOSTR);              (* Unit # *)
+           OUTCMD ('V');                (* Velocity *)
+           VELOCITY := M.HIGHSPD / STEPS_PER_REV;
+           IF VELOCITY < MIN_SPEED
+              THEN VELOCITY := MIN_SPEED
+           ELSE IF VELOCITY > MAX_SPEED
+              THEN VELOCITY := MAX_SPEED;
+           REALSTR (VELOCITY, CHSTR);
+           OUTSTR (CHSTR);
+           OUTCMD (' ');
+
+           OUTSTR (NOSTR);              (* Unit # *)
+           OUTCMD ('A');                (* Acceleration *)
+           IF M.RAMPCNT = 0
+              THEN M.RAMPCNT := 1;
+           ACCELERATION := SQR (VELOCITY) / (M.RAMPCNT / STEPS_PER_REV);
+           IF ACCELERATION < MIN_ACCEL
+              THEN ACCELERATION := MIN_ACCEL
+           ELSE IF ACCELERATION > MAX_ACCEL
+              THEN ACCELERATION := MAX_ACCEL;
+           REALSTR (ACCELERATION, CHSTR);
+           OUTSTR (CHSTR);
+           OUTCMD (' ');
+           END;
+
+END;
+
+(* RUNX post-runs a pre-initialized MCPU motor with the minimum stepping
+(* information for synchronously activated motor axes. *)
+(* For use in nested MCPU 'Drive' command block sequences. *)
+(* Compumotor 1200 requires IBM computer to log cumulative positions. *)
+
+PROCEDURE RUNX (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+    DISTANCE : REAL;
+
+BEGIN
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   OUTSTR (CHSTR);
+
+   M.StepCnt := Abs (M.StepCnt);
+
+   OUTCMD ('D');                        (* Distance = step count *)
+   IF M.DIR = FWD
+      THEN OUTCMD ('+')                 (* Forward direction *)
+      ELSE OUTCMD ('-');                (* Reverse direction *)
+   DISTANCE := M.STEPCNT / STEPS_PER_REV;
+   IF DISTANCE < MIN_REVS / 2.0
+      THEN DISTANCE := 0.0
+   ELSE IF DISTANCE < MIN_REVS
+      THEN DISTANCE := MIN_REVS
+   ELSE IF DISTANCE > MAX_REVS
+      THEN DISTANCE := MAX_REVS;
+   REALSTR (DISTANCE, CHSTR);
+   OUTSTR (CHSTR);
+   OUTCMD (' ');
+
+   M.StepCnt := Distance * Steps_Per_Rev;
+
+   IF M.DIR = REV
+      THEN M.RUNCNT := -1.0 * M.STEPCNT
+      ELSE M.RUNCNT := M.STEPCNT;
+
+   If Not M.CompuMtr_2100
+      Then M.COUNT := M.COUNT + M.RUNCNT;        (* pre-compute 1200 *)
+
+END;
+
+(* DRIVEX drives an MCPU motor according to a step count, direction, and
+(* overiding constant or ramping speed, for immediate operation. *)
+(* For use in nested 'Drive' MCPU command block sequences. *)
+
+PROCEDURE DRIVEX (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   INITX (M);                           (* Initialize speed *)
+
+   RUNX (M);                            (* Run distance *)
+
+END;
+
+(* KILLX stops the specified motor in mid flight. *)
+(* For use in nested MCPU 'Kill' command block sequences. *)
+
+PROCEDURE KILLX (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+
+BEGIN
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   OUTSTR (CHSTR);
+
+   OUTCMD ('S');                        (* Stop *)
+   OUTCMD (' ');
+
+END;
+
+(* ZEROX zeroes out an MCPU axis step position. *)
+(* For use in nested MCPU 'Zero' command block sequences. *)
+
+PROCEDURE ZEROX (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+
+BEGIN
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   OUTSTR (CHSTR);
+
+   OUTCMD ('X');                        (* Zero *)
+   OUTCMD ('0');
+   OUTCMD (' ');
+
+   M.COUNT := 0.0;
+   M.RUNCNT := 0.0;
+
+END;
+
+(*****)
+
+(* CHECHOSIO checks for correctly echoed input of the output byte. *)
+
+Procedure ChEchoSio (EchoChar : char; var EchoStat : boolean);
+
+var SioStat : boolean;
+    SioChar : char;
+
+begin
+
+   Repeat
+      InSioSt (SioStat);
+      If SioStat
+         Then InSio (SioChar);
+   Until (SioStat and (SioChar = EchoChar));
+
+   EchoStat := (SioStat and (SioChar = EchoChar));
+
+end;
+
+(* TIMEOUTSIO times out any returned input byte. *)
+
+Procedure TimeOutSio (var TimeStat : boolean);
+
+const Loop_Time = 10000;
+
+var Tick : integer;
+    Tock : integer;
+    SioStat : boolean;
+
+begin
+
+   Tick := 0;
+   Repeat
+      InSioSt (SioStat);
+      Tick := Tick + 1;
+   Until (SioStat) or (Tick >= Loop_Time);
+
+   TimeStat := SioStat;
+
+end;
+
+(* GET STAT gets the current motion status of an MCPU axis. *)
+(* Note: Compumotor controller(s) echo all commands. *)
+
+(* Detect special Switch Status and beep warning. *)
+(* Note: Compumotor Switch status 'S' will be interpreted as
+(* Compumotor Stop command 'S' in communications daisy chain! *)
+(* Talk about high-priced bugs... And from Marin, too... *)
+
+PROCEDURE GETSTAT (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+    CH : CHAR;
+    STATUS : BOOLEAN;
+    Ready : boolean;
+
+BEGIN
+
+   OutCmd (' ');                        (* pre-sync *)
+
+   INTSTR (M.MOTORNO, CHSTR);           (* Unit # *)
+   OUTSTR (CHSTR);
+
+   OUTCMD ('R');                        (* Read Status *)
+   ChEchoSio ('R', Ready);
+
+   If Ready Then OUTCMD (' ');
+   If Ready Then ChEchoSio (' ', Ready);
+
+   If Ready Then TimeOutSio (Status);
+
+   IF Ready and Status
+      THEN BEGIN
+           INSIO (CH);                  (* status character *)
+           M.STAT := CH;
+           TimeOutSIO (Status);
+           If Status Then
+           INSIO (CH);                  (* return character *)
+           M.ERROR := FALSE;
+           (* If M.Stat = 'S'
+              Then Write (^G);          (* Switch warning ? *)
+           END
+
+      ELSE BEGIN
+           M.STAT := 'E';               (* Error *)
+           M.ERROR := TRUE;
+           END;
+
+   If Not Ready Then ReSync_Mcpu;       (* re-sync *)
+
+END;
+
+(* GET COUNT gets the current step count of an axis from the MCPU. *)
+(* Response in particular sequential format: 10 characters at a time. *)
+(* Note: Compumotor controller(s) echo all commands. *)
+
+(* Compumotor 1200 requires IBM computer to log cummulative positions. *)
+(* Therefore position adjustments necessary for Kill and Jog commands. *)
+
+(* Compumotor 1200 does NOT respond to 'P' command until stopped moving! *)
+
+PROCEDURE GETCOUNT_1200 (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+    D : INTEGER;
+    CH : CHAR;
+    STATUS : BOOLEAN;
+    POSITION : REAL;
+    Ready : boolean;
+    NoStr : String;
+
+BEGIN
+
+GetStat (M);
+
+If (Not M.Error) And ((M.Stat = 'R') Or (M.Stat = 'S'))
+   Then begin
+
+   OutCmd (' ');                        (* pre-sync *)
+
+   INTSTR (M.MOTORNO, NoStr);           (* Unit # *)
+   OUTSTR (NoStr);
+
+   OUTCMD ('P');                        (* Position *)
+   ChEchoSio ('P', Ready);
+
+   If Ready Then OUTCMD (' ');
+   If Ready Then ChEchoSio (' ', Ready);
+
+   If Ready Then TimeOutSio (Status);
+
+   IF Ready and Status
+      THEN BEGIN
+           FOR D := 1 TO 10 DO
+               begin
+               TimeOutSIO (Status);
+               If Status Then
+               INSIO (CHSTR [D]);       (* sign + 9 digits *)
+               end;
+
+           TimeOutSIO (Status);
+           If Status Then
+           INSIO (CH);                  (* return *)
+
+           If Status
+              Then begin
+              CHSTR [0] := CHR (10);
+              STREAL (CHSTR, POSITION);
+              POSITION := POSITION * STEPS_PER_REV;
+
+              IF (M.RUNCNT <> 0.0)
+                 THEN IF (POSITION) <> (M.RUNCNT)
+                      THEN BEGIN
+                        If Not M.CompuMtr_2100
+                           Then M.COUNT := M.COUNT - M.RUNCNT + POSITION;
+                                                  (* post-adjust 1200 *)
+                        M.RUNCNT := 0.0;
+
+                        OutCmd (' ');
+                        OutStr (NoStr);
+                        OutCmd ('D');             (* Distance = 0 *)
+                        OutCmd ('0');
+                        OutCmd (' ');
+
+                        OutStr (NoStr);
+                        OutCmd ('G');             (* 'Go' Distance = 0 *)
+                        OutCmd (' ');
+                        END;
+              end
+
+              Else M.Stat := '?';
+           END
+
+      ELSE M.Stat  := '?';                        (* Error *)
+
+   If Not Ready Then ReSync_Mcpu;                 (* re-sync *)
+
+   end;   (* if 1200 is going to respond *)
+
+END;
+
+(* Compumotor 2100 series log cummulatve positions internally. *)
+
+PROCEDURE GETCOUNT_2100 (VAR M : MOTOR_TABLE);
+
+VAR CHSTR : STRING;
+    D : INTEGER;
+    CH : CHAR;
+    STATUS : BOOLEAN;
+    POSITION : REAL;
+    Ready : boolean;
+    NoStr : String;
+
+BEGIN
+
+   OutCmd (' ');                        (* pre-sync *)
+
+   INTSTR (M.MOTORNO, NoStr);           (* Unit # *)
+   OUTSTR (NoStr);
+
+   OUTCMD ('X');                        (* Position *)
+   ChEchoSio ('X', Ready);
+
+   If Ready Then OUTCMD ('1');
+   If Ready Then ChEchoSio ('1', Ready);
+
+   If Ready Then OUTCMD (' ');
+   If Ready Then ChEchoSio (' ', Ready);
+
+   If Ready Then TimeOutSio (Status);
+
+   IF Ready and Status
+      THEN BEGIN
+           FOR D := 1 TO 10 DO
+               begin
+               TimeOutSIO (Status);
+               If Status Then
+               INSIO (CHSTR [D]);       (* sign + 9 digits *)
+               end;
+
+           TimeOutSIO (Status);
+           If Status Then
+           INSIO (CH);                  (* return *)
+
+           If Status
+              Then begin
+              CHSTR [0] := CHR (10);
+              STREAL (CHSTR, POSITION);
+              POSITION := POSITION * STEPS_PER_REV;
+              M.COUNT := POSITION;
+              end
+
+              Else M.Stat := '?';
+           END
+
+      ELSE M.Stat  := '?';              (* Error *)
+
+   If Not Ready Then ReSync_Mcpu;       (* re-sync *)
+
+END;
+
+(* Compumotor 2100 series uses hardware positioning. *)
+(* Compumotor 1200 series uses software positioning. *)
+
+PROCEDURE GETCOUNT (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+If Not M.Error
+   Then If M.Compumtr_2100
+           Then GETCOUNT_2100 (M)
+           Else GETCOUNT_1200 (M);
+END;
+
+(* GETX gets the status and position data from the MCPU, ready or not. *)
+
+PROCEDURE GETX (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   GETSTAT (M);
+
+   IF NOT M.ERROR
+      THEN GETCOUNT (M);
+
+END;
+
+(* STATX gets the current status and step count of an MCPU axis. *)
+(* For use in nested MCPU 'Status' command block sequences. *)
+
+PROCEDURE STATX (VAR M : MOTOR_TABLE);
+
+BEGIN
+
+   GETX (M);
+
+END;
+

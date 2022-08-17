@@ -1,1 +1,94 @@
-(* MCPU command block sequences. *)(* INIT EM ALL initializes all MCPU axes, primary and secondary. *)PROCEDURE INITM_ALL;VAR I : INTEGER;BEGIN   FOR I := 1 TO MAX_AXES DO       WITH AA [I] DO            IF NOT M.ERROR               THEN INITX (M);          (* Initialize block *)   WAITBACK;END;(* RUN EM ALL runs all (non-zero) MCPU motor axes. *)PROCEDURE RUNM_ALL;VAR I : INTEGER;    ChStr : String;BEGIN   OUTCMD ('D');                        (* pre-Drive all null *)   OUTCMD ('0');   OUTCMD (' ');   FOR I := 1 TO MIN_AXES DO       WITH AA [I] DO            IF NOT M.ERROR               THEN RUNX (M);           (* Drive block *)   For I := 1 to Min_Axes Do       With AA [I] Do            If Not M.Error               Then begin                    IntStr (M.MotorNo, ChStr);                    OutStr (ChStr);                    OutCmd ('G');                    OutCmd (^M );                    end;END;(* KILL EM ALL and let God sort em out...was once decreed by some Pope. *)(* KILL EM ALL now kills any and all MCPU motor axes, running or not. *)PROCEDURE KILLM_ALL;VAR I : INTEGER;BEGIN   OUTCMD ('S');                        (* pre-Kill all *)   OUTCMD (' ');   FOR I := 1 TO MAX_AXES DO       KILLX (AA [I].M);                (* Kill block *)END;(* ZERO EM ALL zeroes all MCPU step positions. *)PROCEDURE ZEROM_ALL;VAR I : INTEGER;BEGIN   FOR I := 1 TO MIN_AXES DO       ZEROX (AA [I].M);                (* Zero block *)END;(* STATUS EM ALL fetches all the current info for all MCPU axes. *)PROCEDURE STATM_ALL;VAR I : INTEGER;BEGIN   FOR I := 1 TO MAX_AXES DO       WITH AA [I] DO            IF NOT M.ERROR               THEN STATX (M);          (* Status block *)END;
+
+(* MCPU command block sequences. *)
+
+(* INIT EM ALL initializes all MCPU axes, primary and secondary. *)
+
+PROCEDURE INITM_ALL;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       WITH AA [I] DO
+            IF NOT M.ERROR
+               THEN INITX (M);          (* Initialize block *)
+
+   WAITBACK;
+
+END;
+
+(* RUN EM ALL runs all (non-zero) MCPU motor axes. *)
+
+PROCEDURE RUNM_ALL;
+
+VAR I : INTEGER;
+    ChStr : String;
+
+BEGIN
+
+   OUTCMD ('D');                        (* pre-Drive all null *)
+   OUTCMD ('0');
+   OUTCMD (' ');
+
+   FOR I := 1 TO MIN_AXES DO
+       WITH AA [I] DO
+            IF NOT M.ERROR
+               THEN RUNX (M);           (* Drive block *)
+
+   For I := 1 to Min_Axes Do
+       With AA [I] Do
+            If Not M.Error
+               Then begin
+                    IntStr (M.MotorNo, ChStr);
+                    OutStr (ChStr);
+                    OutCmd ('G');
+                    OutCmd (^M );
+                    end;
+END;
+
+(* KILL EM ALL and let God sort em out...was once decreed by some Pope. *)
+(* KILL EM ALL now kills any and all MCPU motor axes, running or not. *)
+
+PROCEDURE KILLM_ALL;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   OUTCMD ('S');                        (* pre-Kill all *)
+   OUTCMD (' ');
+
+   FOR I := 1 TO MAX_AXES DO
+       KILLX (AA [I].M);                (* Kill block *)
+
+END;
+
+(* ZERO EM ALL zeroes all MCPU step positions. *)
+
+PROCEDURE ZEROM_ALL;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   FOR I := 1 TO MIN_AXES DO
+       ZEROX (AA [I].M);                (* Zero block *)
+
+END;
+
+(* STATUS EM ALL fetches all the current info for all MCPU axes. *)
+
+PROCEDURE STATM_ALL;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       WITH AA [I] DO
+            IF NOT M.ERROR
+               THEN STATX (M);          (* Status block *)
+END;
+
+
