@@ -1,1 +1,168 @@
-(* User interface routines for managing windows and dialog boxes. *)Unit USERIO;{$I switches.p}Interface	uses		Types, 		QuickDraw,		Fonts, 		Windows, 		Dialogs,		Menus,        Events,        QuickDrawText,        Controls;(* global cursor coordinates for mono-spaced text in graphics window *)	var		TV, TH: Integer;	         { location of text }	(*********   items in User Dialogs      ***********)	const		BtnItem = 4;      (* button item type *)		ChkItem = 5;      (* check box item type *)		RadItem = 6;      (* radio button item type *)		TextItem = 16;    (* edit text item type *)	var		The_Dialog: DialogPtr;         (* dialog box *)		The_Item: Integer;             (* dialog item *)		The_Type: Integer;             (* item type *)		The_ItemHdl: Handle;           (* general item handle *)		The_ItemBox: Rect;             (* item location coordinates *)		The_BtnHdl,                     (* button item handle *)		The_ChkHdl,                     (* check box handle *)		The_RadHdl,                     (* radio button handle *)		The_TextHdl: Handle;           (* text item handle *)	procedure DrawStr (Str: string);	procedure Drawln;	PROCEDURE DoOutlineControl (myControl: UNIV ControlHandle);	PROCEDURE DoDefaultButton (myDialog: DialogPtr);{$IFC CODEWARRIOR_PASCAL}       PROCEDURE GetDItem(theDialog: DialogRef; itemNo: INTEGER; VAR itemType: INTEGER; VAR item: Handle; VAR box: Rect);PROCEDURE SetIText(item: Handle; text: ConstStr255Param);PROCEDURE SelIText(theDialog: DialogRef; itemNo: INTEGER; strtSel: INTEGER; endSel: INTEGER);PROCEDURE GetIText(item: Handle; VAR text: Str255);PROCEDURE DisposDialog(theDialog: DialogRef);PROCEDURE SetCtlValue(theControl: ControlRef; theValue: INTEGER);PROCEDURE SetCTitle(theControl: ControlRef; title: ConstStr255Param);PROCEDURE GetItem(theMenu: MenuRef; item: INTEGER; VAR itemString: Str255);PROCEDURE AddResMenu(theMenu: MenuRef; theType: ResType);{$ENDC}Implementation(********** Screen support routines. **********)(* DrawStr moves to text location and writes out Str *)	procedure DrawStr (Str: string);	begin		MoveTo(TH, TV);                        { move to current text location }		DrawString(Str);                      { write on screen               }		TH := TH + StringWidth(Str)           { advance location to end of str}	end;	(* 'Draw' end of line, as in Writeln. *)	procedure Drawln;	begin		TH := 5;                             (* 1st column for X *)		TV := TV + 12;                       (* next row for Y *)		MoveTo(TH, TV);                     (* move cursor there *)	end;	(* DoOutlineControl: draw bold outline around a control. *)	PROCEDURE DoOutlineControl (myControl: UNIV ControlHandle);		VAR			myOval:				Integer;			myRect:				Rect;			origPen:				PenState;			origPort:				GrafPtr;	BEGIN		IF myControl <> NIL THEN			BEGIN				GetPort(origPort);				SetPort(myControl^^.contrlOwner);				GetPenState(origPen);				PenNormal;				myRect := myControl^^.contrlRect;				InsetRect(myRect, -4, -4);				myOval := ((myRect.bottom - myRect.top) DIV 2) + 2;				(* IF (myControl^^.contrlHilite = 0) THEN					PenPat(qd.gray)				ELSE					PenPat(qd.black); *)				PenSize(3, 3);				FrameRoundRect(myRect, myOval, myOval);				SetPenState(origPen);				SetPort(origPort);			END;	END;(* DoDefaultButton: draw bold outline around default button in a dialog. *)	PROCEDURE DoDefaultButton (myDialog: DialogPtr);		VAR			myType:				Integer;			myHand:				Handle;			myRect:				Rect;	BEGIN		GetDialogItem(myDialog, Ok, myType, myHand, myRect);		DoOutlineControl(myHand);	END;{$IFC CODEWARRIOR_PASCAL}       (* CodeWarrior patches for "OldRoutineNames" used prior to System 7.5: *)PROCEDURE GetDItem(theDialog: DialogRef; itemNo: INTEGER; VAR itemType: INTEGER; VAR item: Handle; VAR box: Rect);begin	GetDialogItem(theDialog, itemNo, itemType, item, box);end;PROCEDURE SetIText(item: Handle; text: ConstStr255Param);begin	SetDialogItemText(item, text);end;PROCEDURE SelIText(theDialog: DialogRef; itemNo: INTEGER; strtSel: INTEGER; endSel: INTEGER);begin	SelectDialogItemText(theDialog, itemNo, strtSel, endSel);end;PROCEDURE GetIText(item: Handle; VAR text: Str255);begin	GetDialogItemText(item, text);end;PROCEDURE DisposDialog(theDialog: DialogRef);begin	DisposeDialog(theDialog);end;PROCEDURE SetCtlValue(theControl: ControlRef; theValue: INTEGER);begin	SetControlValue(theControl, theValue);end;PROCEDURE SetCTitle(theControl: ControlRef; title: ConstStr255Param);begin	SetControlTitle(theControl, title);end;PROCEDURE GetItem(theMenu: MenuRef; item: INTEGER; VAR itemString: Str255);begin	GetMenuItemText(theMenu, item, itemString);end;PROCEDURE AddResMenu(theMenu: MenuRef; theType: ResType);begin	AppendResMenu(theMenu, theType);end;{$ENDC}		(* CODEWARRIOR_PASCAL *)End.
+(* User interface routines for managing windows and dialog boxes. *)
+
+Unit USERIO;
+
+{$I switches.p}
+
+Interface
+
+	uses
+		Types, 
+		QuickDraw,
+		Fonts, 
+		Windows, 
+		Dialogs,
+		Menus,
+        Events,
+        QuickDrawText,
+        Controls;
+
+(* global cursor coordinates for mono-spaced text in graphics window *)
+	var
+		TV, TH: Integer;	         { location of text }
+	
+(*********   items in User Dialogs      ***********)
+
+	const
+		BtnItem = 4;      (* button item type *)
+		ChkItem = 5;      (* check box item type *)
+		RadItem = 6;      (* radio button item type *)
+		TextItem = 16;    (* edit text item type *)
+
+	var
+		The_Dialog: DialogPtr;         (* dialog box *)
+		The_Item: Integer;             (* dialog item *)
+		The_Type: Integer;             (* item type *)
+		The_ItemHdl: Handle;           (* general item handle *)
+		The_ItemBox: Rect;             (* item location coordinates *)
+		The_BtnHdl,                     (* button item handle *)
+		The_ChkHdl,                     (* check box handle *)
+		The_RadHdl,                     (* radio button handle *)
+		The_TextHdl: Handle;           (* text item handle *)
+
+	procedure DrawStr (Str: string);
+	procedure Drawln;
+	PROCEDURE DoOutlineControl (myControl: UNIV ControlHandle);
+	PROCEDURE DoDefaultButton (myDialog: DialogPtr);
+
+{$IFC CODEWARRIOR_PASCAL}       
+PROCEDURE GetDItem(theDialog: DialogRef; itemNo: INTEGER; VAR itemType: INTEGER; VAR item: Handle; VAR box: Rect);
+PROCEDURE SetIText(item: Handle; text: ConstStr255Param);
+PROCEDURE SelIText(theDialog: DialogRef; itemNo: INTEGER; strtSel: INTEGER; endSel: INTEGER);
+PROCEDURE GetIText(item: Handle; VAR text: Str255);
+PROCEDURE DisposDialog(theDialog: DialogRef);
+PROCEDURE SetCtlValue(theControl: ControlRef; theValue: INTEGER);
+PROCEDURE SetCTitle(theControl: ControlRef; title: ConstStr255Param);
+PROCEDURE GetItem(theMenu: MenuRef; item: INTEGER; VAR itemString: Str255);
+PROCEDURE AddResMenu(theMenu: MenuRef; theType: ResType);
+{$ENDC}
+
+Implementation
+
+(********** Screen support routines. **********)
+
+(* DrawStr moves to text location and writes out Str *)
+	procedure DrawStr (Str: string);
+	begin
+		MoveTo(TH, TV);                        { move to current text location }
+		DrawString(Str);                      { write on screen               }
+		TH := TH + StringWidth(Str)           { advance location to end of str}
+	end;
+	
+(* 'Draw' end of line, as in Writeln. *)
+	procedure Drawln;
+	begin
+		TH := 5;                             (* 1st column for X *)
+		TV := TV + 12;                       (* next row for Y *)
+		MoveTo(TH, TV);                     (* move cursor there *)
+	end;
+	
+(* DoOutlineControl: draw bold outline around a control. *)
+	PROCEDURE DoOutlineControl (myControl: UNIV ControlHandle);
+		VAR
+			myOval:				Integer;
+			myRect:				Rect;
+			origPen:				PenState;
+			origPort:				GrafPtr;
+	BEGIN
+		IF myControl <> NIL THEN
+			BEGIN
+				GetPort(origPort);
+				SetPort(myControl^^.contrlOwner);
+				GetPenState(origPen);
+				PenNormal;
+
+				myRect := myControl^^.contrlRect;
+				InsetRect(myRect, -4, -4);
+				myOval := ((myRect.bottom - myRect.top) DIV 2) + 2;
+				(* IF (myControl^^.contrlHilite = 0) THEN
+					PenPat(qd.gray)
+				ELSE
+					PenPat(qd.black); *)
+				PenSize(3, 3);
+				FrameRoundRect(myRect, myOval, myOval);
+				SetPenState(origPen);
+				SetPort(origPort);
+			END;
+	END;
+
+(* DoDefaultButton: draw bold outline around default button in a dialog. *)
+	PROCEDURE DoDefaultButton (myDialog: DialogPtr);
+		VAR
+			myType:				Integer;
+			myHand:				Handle;
+			myRect:				Rect;
+	BEGIN
+		GetDialogItem(myDialog, Ok, myType, myHand, myRect);
+		DoOutlineControl(myHand);
+	END;
+
+{$IFC CODEWARRIOR_PASCAL}       
+(* CodeWarrior patches for "OldRoutineNames" used prior to System 7.5: *)
+PROCEDURE GetDItem(theDialog: DialogRef; itemNo: INTEGER; VAR itemType: INTEGER; VAR item: Handle; VAR box: Rect);
+begin
+	GetDialogItem(theDialog, itemNo, itemType, item, box);
+end;
+
+PROCEDURE SetIText(item: Handle; text: ConstStr255Param);
+begin
+	SetDialogItemText(item, text);
+end;
+
+PROCEDURE SelIText(theDialog: DialogRef; itemNo: INTEGER; strtSel: INTEGER; endSel: INTEGER);
+begin
+	SelectDialogItemText(theDialog, itemNo, strtSel, endSel);
+end;
+
+PROCEDURE GetIText(item: Handle; VAR text: Str255);
+begin
+	GetDialogItemText(item, text);
+end;
+
+PROCEDURE DisposDialog(theDialog: DialogRef);
+begin
+	DisposeDialog(theDialog);
+end;
+
+PROCEDURE SetCtlValue(theControl: ControlRef; theValue: INTEGER);
+begin
+	SetControlValue(theControl, theValue);
+end;
+
+PROCEDURE SetCTitle(theControl: ControlRef; title: ConstStr255Param);
+begin
+	SetControlTitle(theControl, title);
+end;
+
+PROCEDURE GetItem(theMenu: MenuRef; item: INTEGER; VAR itemString: Str255);
+begin
+	GetMenuItemText(theMenu, item, itemString);
+end;
+
+PROCEDURE AddResMenu(theMenu: MenuRef; theType: ResType);
+begin
+	AppendResMenu(theMenu, theType);
+end;
+{$ENDC}		(* CODEWARRIOR_PASCAL *)
+
+End.
