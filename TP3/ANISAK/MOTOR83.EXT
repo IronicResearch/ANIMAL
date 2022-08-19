@@ -1,0 +1,289 @@
+
+(* MOTOR PROFILE displays the currently active MCPU motor speed profile
+(* for each available ANIMAL axis, and allows the user to modify it.*)
+
+(* OVERLAY *) PROCEDURE MOTOR_PROFILE;
+
+VAR ANSWER : CHAR;
+    SPEEDS_OK : BOOLEAN;
+    SELECTION : CHAR;
+    PRIMARY : BOOLEAN;
+
+    ID : CHAR2;
+    OK : BOOLEAN;
+    AX : AXIS_TABLE;
+
+    HALF1 : INTEGER;
+    HALF2 : INTEGER;
+
+(* SPEED displays the current speed for the selected ANIMAL axis.*)
+
+PROCEDURE SPEED (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   WRITE (A.ID:10);
+   IF A.R.ACCEL
+      THEN BEGIN
+           WRITE ('YES':10);
+           WRITE ('  ':12);
+           WRITE (A.R.MIN_LOWSPD:15, A.R.MAX_HIGHSPD:15, A.R.MAX_RAMPCNT:15);
+           END
+      ELSE BEGIN
+           WRITE ('NO':10);
+           WRITE (A.R.MAX_SPEED:12);
+           END;
+   WRITELN;
+
+END;
+
+(* MODIFY SPEED modifies the speed profile for each selected MCPU axis.*)
+
+PROCEDURE MODIFY_SPEED (VAR A : AXIS_TABLE);
+
+VAR ANSWER : CHAR;
+
+BEGIN
+
+   WRITELN;
+   WRITE ('Acceleration? (Y/N) ');
+   RDCON (ANSWER);
+   WRITELN;
+
+   IF ANSWER = 'Y'
+      THEN BEGIN
+           A.R.ACCEL := TRUE;
+           WRITE ('Low Speed = ');
+           RDLNINT (A.R.MIN_LOWSPD);
+           WRITE ('High Speed = ');
+           RDLNINT (A.R.MAX_HIGHSPD);
+           WRITE ('Ramping Count = ');
+           RDLNINT (A.R.MAX_RAMPCNT);
+           END
+
+      ELSE BEGIN
+           A.R.ACCEL := FALSE;
+           WRITE ('Constant Speed = ');
+           RDLNINT (A.R.MAX_SPEED);
+           END;
+
+   A.M.ACCELST := A.R.ACCEL;
+   A.M.SPEED   := A.R.MAX_SPEED;
+   A.M.LOWSPD  := A.R.MIN_LOWSPD;
+   A.M.HIGHSPD := A.R.MAX_HIGHSPD;
+   A.M.RAMPCNT := A.R.MAX_RAMPCNT;
+   A.M.RAMPK   := 0;
+
+   INITM (A.M);
+
+END;
+
+(* SAVE SPEED saves the motor profile onto disk. *)
+
+PROCEDURE SAVE_SPEED;
+
+VAR SPEEDNAME : STRING [14];
+    SPEEDFILE : FILE OF RUN_PROFILE;
+
+    NAME_OK : BOOLEAN;
+    SAVE_OK : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+REPEAT
+
+   WRITE ('Speed File Name: ');
+   READLN (SPEEDNAME);
+   WRITELN;
+
+   WRITELN ('Proceeding to save file...');
+   ASSIGN (SPEEDFILE, SPEEDNAME);
+   {$I-}
+   REWRITE (SPEEDFILE);
+   {$I+}
+
+   IF IORESULT = 0
+      THEN SAVE_OK := TRUE
+      ELSE BEGIN
+           SAVE_OK := FALSE;
+           WRITE ('File Saving Error -- Try again? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN NAME_OK := FALSE
+              ELSE NAME_OK := TRUE;
+           END;
+
+UNTIL NAME_OK OR SAVE_OK;
+
+IF SAVE_OK
+   THEN BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       WRITE (SPEEDFILE, AA [I].R);
+
+   CLOSE (SPEEDFILE);
+   WRITELN ('File saving completed');
+   WRITELN;
+
+   END;  (* IF File Saving ok *)
+
+END;
+
+(* LOAD SPEED loads the motor profile onto disk. *)
+
+PROCEDURE LOAD_SPEED;
+
+VAR SPEEDNAME : STRING [14];
+    SPEEDFILE : FILE OF RUN_PROFILE;
+
+    NAME_OK : BOOLEAN;
+    LOAD_OK : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+REPEAT
+
+   WRITE ('Speed File Name: ');
+   READLN (SPEEDNAME);
+   WRITELN;
+
+   WRITELN ('Proceeding to load file...');
+   ASSIGN (SPEEDFILE, SPEEDNAME);
+   {$I-}
+   RESET (SPEEDFILE);
+   {$I+}
+
+   IF IORESULT = 0
+      THEN LOAD_OK := TRUE
+      ELSE BEGIN
+           LOAD_OK := FALSE;
+           WRITE ('File Not Found -- Try again? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN NAME_OK := FALSE
+              ELSE NAME_OK := TRUE;
+           END;
+
+UNTIL NAME_OK OR LOAD_OK;
+
+IF LOAD_OK
+   THEN BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       READ (SPEEDFILE, AA [I].R);
+
+   CLOSE (SPEEDFILE);
+   WRITELN ('File loading complete');
+   WRITELN;
+
+   INIT_ALL_MOTOR;
+   INIT_AXES;
+
+   END;  (* IF loading ok *)
+
+END;
+
+BEGIN   (* MOTOR PROFILE *)
+
+PRIMARY := TRUE;
+
+SPEEDS_OK := FALSE;
+
+REPEAT
+
+   CLRSCRN;
+
+   WRITE ('AXIS':10, 'ACCEL':10, 'SPEED':12);
+   WRITELN ('LOW SPEED':15, 'HIGH SPEED':15, 'RAMP COUNT':15);
+   WRITELN;
+
+   IF PRIMARY
+      THEN BEGIN
+           HALF1 := (MAX_AXES + 1) DIV 2;
+           FOR I := 1 TO HALF1 DO
+               SPEED (AA [I]);
+           END
+
+      ELSE BEGIN
+           HALF2 := ((MAX_AXES + 1) DIV 2) + 1;
+           FOR I := HALF2 TO MAX_AXES DO
+               SPEED (AA [I]);
+           END;
+
+   WRITELN;
+   WRITELN ('Running Speed Profile Selections:');
+   WRITELN;
+   WRITELN ('   M : Modify existing Running Speeds');
+   WRITELN ('   O : Overide MCPU Motor Axes for Test');
+   WRITELN ('   S : Save Speed Profile onto Disk File');
+   WRITELN ('   L : Load Speed Profile from Disk File');
+   WRITELN ('   F : File Directory Listing of Disk');
+   WRITELN ('   1 : Primary Axis Speeds on Display');
+   WRITELN ('   2 : Secondary Axis Speeds on Display');
+   WRITELN ('   Q : Quit Speed Profile Selections');
+   WRITELN;
+
+   RDCON (SELECTION);
+   CASE SELECTION OF
+
+        'M' : BEGIN
+              WRITE ('odify ');
+              WRITE ('which axis? ');
+              RDCON (ID [1]);
+              RDCON (ID [2]);
+              WRITELN;
+              CASE_AXIS (ID, OK, AX);
+              IF OK THEN MODIFY_SPEED (AX);
+              SWAP_AXIS_BACK (ID, AX);
+              END;
+
+        'O' : BEGIN
+              WRITELN ('veride...');
+              WRITELN;
+              OVERIDE;
+              END;
+
+        'S' : BEGIN
+              WRITELN ('ave Speed File');
+              WRITELN;
+              SAVE_SPEED;
+              END;
+
+        'L' : BEGIN
+              WRITELN ('oad Speed File');
+              WRITELN;
+              LOAD_SPEED;
+              END;
+
+        'F' : BEGIN
+              WRITELN ('ile Directory Listing...');
+              WRITELN;
+              FILE_DIRECTORY;
+              WRITE ('Press any Key to Proceed > ');
+              RDKEY (ANSWER);
+              WRITELN;
+              END;
+
+        '1' : PRIMARY := TRUE;
+
+        '2' : PRIMARY := FALSE;
+
+        'Q' : BEGIN
+              WRITE ('uit Speed Selections...for sure? (Y/N) ');
+              RDCON (ANSWER);
+              IF ANSWER = 'Y'
+                 THEN SPEEDS_OK := TRUE;
+              END;
+
+        END;
+
+UNTIL SPEEDS_OK;
+
+END;   (* MOTOR PROFILE *)
+

@@ -1,0 +1,240 @@
+
+(* Fade Functions for cameras with variable shutters. *)
+
+(* LOG 2 computes the logarithm to the base of 2. *)
+
+PROCEDURE LOG_2 (VAR X : REAL; VAR Y : REAL);
+
+BEGIN
+
+   Y := LN (X) / LN (2.0);
+
+END;
+
+(* POWER 2 computes the power of the base of 2. *)
+
+PROCEDURE POWER_2 (VAR X : REAL; VAR Y : REAL);
+
+BEGIN
+
+   Y := EXP (X * LN (2.0));
+
+END;
+
+(* VARIABLE SHUTTER runs the variable shutter to the selected angle. *)
+
+PROCEDURE VARIABLE_SHUTTER (ANGLE : REAL);
+
+VAR STEPS : REAL;
+
+BEGIN
+
+   IF ANGLE < 0.0
+      THEN ANGLE := 0.0
+   ELSE IF ANGLE > MAX_ANGLE
+      THEN ANGLE := MAX_ANGLE;
+
+   CONVERT (ANGLE, XC.K.KSCALE, STEPS);
+   GETCOUNT (XC.C);
+
+   XC.M.STEPCNT := STEPS - XC.C.COUNT;
+   PREPM (XC.M);
+   RUNM (XC.M);
+
+END;
+
+(* COMPUTE ANGLE computes the variable shutter angle for an exposure time. *)
+
+PROCEDURE COMPUTE_SHUTTER_ANGLE;
+
+BEGIN
+
+   SHUTTER_ANGLE := 360.0 * (EXPOSURE_TIME / 0.5);
+
+END;
+
+(* COMPUTE EXPOSURE computes the incremental exposure time during a fade. *)
+
+PROCEDURE COMPUTE_EXPOSURE_TIME;
+
+BEGIN
+
+   IF FADEIN
+      THEN FADE_COUNT := FADE_COUNT + FRAME_STEP
+      ELSE FADE_COUNT := FADE_COUNT - FRAME_STEP;
+
+   IF FADELOG
+      THEN BEGIN
+           EXP_INCR := FADE_COUNT / FADE_LENGTH;
+           EXP_INCR := EXP_INCR * NSTOPS;
+           POWER_2 (EXP_INCR, LOG_INCR);
+           POWER_2 (NSTOPS, FSTOPS);
+           LOG_INCR := LOG_INCR / FSTOPS;
+           EXPOSURE_TIME := MAX_EXP * LOG_INCR;
+
+           IF TAPERED_FADE AND (FADE_COUNT < TAPER_COUNT)
+              THEN IF TAPERED_SINE
+                   THEN EXPOSURE_TIME := EXPOSURE_TIME * SIN (PI/2 * FADE_COUNT / TAPER_COUNT)
+                   ELSE EXPOSURE_TIME := EXPOSURE_TIME * FADE_COUNT / TAPER_COUNT;
+
+           IF NOT FADEIN
+              THEN IF FADE_COUNT = 0
+                   THEN EXPOSURE_TIME := 0.0;
+           END
+
+      ELSE IF FADESIN
+           THEN BEGIN
+                PHI_INCR := (PI * FADE_COUNT / FADE_LENGTH) - PI/2;
+                EXPOSURE_TIME := (MAX_EXP / 2.0) * (SIN (PHI_INCR) + 1.0);
+                END
+
+      ELSE IF FADEIN
+              THEN EXPOSURE_TIME := EXPOSURE_TIME + EXP_INCR
+              ELSE EXPOSURE_TIME := EXPOSURE_TIME - EXP_INCR;
+
+END;
+
+(* PRE-COMPUTE FADE pre-computes the exposure time and shutter angle data
+(* for either the desired fade-in or fade-out sequence, and initializes
+(* the variable shutter position accordingly. *)
+
+PROCEDURE PRE_COMPUTE_FADE;
+
+VAR STEPS : REAL;
+
+BEGIN
+
+   MAX_EXP := EXPOSURE_TIME;
+   MIN_EXP := STD_EXP_TIME;
+
+   EXP_INCR := MAX_EXP / FADE_LENGTH;
+
+   IF FADELOG AND TAPERED_FADE
+      THEN TAPER_COUNT := ROUND (FADE_TAPER * FADE_LENGTH / 100.0)
+      ELSE TAPER_COUNT := 0;
+
+   IF FADEIN
+      THEN BEGIN
+           FADE_EXP := FALSE;
+           FADE_SHTR := TRUE;
+
+           FADE_COUNT := 0;
+           EXPOSURE_TIME := 0.0;
+           SHUTTER_ANGLE := 0.0;
+
+           VARIABLE_SHUTTER (0.0);
+           WRITELN ('Closing Variable Shutter...');
+           WRITELN;
+           WAITOVER;
+           END         (* Fade In *)
+
+      ELSE BEGIN
+           FADE_EXP := TRUE;
+           FADE_SHTR := FALSE;
+
+           FADE_COUNT := FADE_LENGTH;
+           EXPOSURE_TIME := MAX_EXP;
+           COMPUTE_SHUTTER_ANGLE;
+
+           VARIABLE_SHUTTER (SHUTTER_ANGLE);
+           WRITELN ('Opening Variable Shutter...');
+           WRITELN;
+           WAITOVER;
+           END;        (* Fade Out *)
+
+END;
+
+(* FADE IT runs through the fade-in or fade-out sequence, incrementing
+(* either the exposure time or shutter angle according to frame number. *)
+
+PROCEDURE FADEIT;
+
+VAR STEPS : REAL;
+
+BEGIN
+
+   IF FADEIN
+      THEN BEGIN
+           COMPUTE_EXPOSURE_TIME;
+
+           IF FADE_SHTR
+              THEN BEGIN
+                   COMPUTE_SHUTTER_ANGLE;
+
+                   IF SHUTTER_ANGLE > MAX_ANGLE
+                      THEN BEGIN
+                           SHUTTER_ANGLE := MAX_ANGLE;
+                           FADE_SHTR := FALSE;
+                           FADE_EXP := TRUE;
+                           END;
+
+                   VARIABLE_SHUTTER (SHUTTER_ANGLE);
+                   IF DISPLAY THEN WRITELN ('Fading In Variable Shutter...');
+                   IF DISPLAY THEN WRITELN;
+                   WAITOVER;
+                   END;     (* Fade In Shutter *)
+
+           IF FADE_EXP
+              THEN BEGIN
+                   IF EXPOSURE_TIME > MAX_EXP
+                      THEN EXPOSURE_TIME := MAX_EXP;
+                   IF FADE_COUNT >= FADE_LENGTH
+                      THEN FADE := FALSE;
+                   END;    (* Fade In Exposure *)
+
+           END     (* IF Fade In *)
+
+      ELSE BEGIN
+           COMPUTE_EXPOSURE_TIME;
+
+           IF FADE_EXP
+              THEN BEGIN
+                   IF EXPOSURE_TIME < MIN_EXP
+                      THEN BEGIN
+                           FADE_EXP := FALSE;
+                           FADE_SHTR := TRUE;
+                           END;
+                    END;   (* Fade Out Exposure *)
+
+            IF FADE_SHTR
+               THEN BEGIN
+                    COMPUTE_SHUTTER_ANGLE;
+
+                    IF SHUTTER_ANGLE < 0.0
+                       THEN SHUTTER_ANGLE := 0.0;
+                    IF FADE_COUNT <= 0
+                       THEN FADE := FALSE;
+
+                    VARIABLE_SHUTTER (SHUTTER_ANGLE);
+                    IF DISPLAY THEN WRITELN ('Fading Out Variable Shutter...');
+                    IF DISPLAY THEN WRITELN;
+                    WAITOVER;
+
+                    IF DISSOLVE AND (FADE_COUNT = 0)
+                       THEN BEGIN
+                            A.M.DIR := NOT E.M.DIR;
+                            A.M.STEPCNT := FADE_LENGTH;
+                            RUNM (A.M);
+                            IF DISPLAY THEN WRITELN ('Rewinding for Dissolve...');
+                            IF DISPLAY THEN WRITELN;
+                            WAITOVER;
+
+                            IF A.M.DIR = REV
+                               THEN TOTAL_COUNT := TOTAL_COUNT - FADE_LENGTH
+                               ELSE TOTAL_COUNT := TOTAL_COUNT + FADE_LENGTH;
+                            FADEIN := TRUE;
+                            FADE := TRUE;
+                            DISSOLVE := FALSE;
+                            END;
+
+                    END;     (* Fade Out Shutter *)
+
+            END;    (* ELSE Fade Out *)
+
+   IF DISPLAY THEN WRITELN ('Exposure Time = ', EXPOSURE_TIME:5:2);
+   IF DISPLAY THEN WRITELN ('Shutter Angle = ', SHUTTER_ANGLE:5:2);
+   IF DISPLAY THEN WRITELN;
+
+END;
+
+

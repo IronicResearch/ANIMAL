@@ -1,0 +1,109 @@
+
+(* Miscellaneous ANIMAL options for running programmed sequences. *)
+
+(* SPECIFY FRAME COUNT presets the frame count. *)
+
+PROCEDURE SPEC_FRAME_COUNT;
+
+BEGIN
+
+   WRITE ('Frame Count = ');
+   RDLNINT (FRAME_COUNT);
+   WRITELN;
+   PRESET_COUNT := FRAME_COUNT;
+
+END;
+
+(* SPECIFY EXPOSURES selects if actual camera exposures are run. *)
+
+PROCEDURE SPEC_EXPOSURES;
+
+VAR ANSWER : CHAR;
+
+BEGIN
+
+   WRITE ('Exposures Active? (Y/N) ');
+   RDCON (ANSWER);
+   WRITELN;
+   WRITELN;
+   CASE ANSWER OF
+        'Y' : EXPOSURE := TRUE;
+        'N' : EXPOSURE := FALSE;
+        'E' : EXPOSURE := NOT EXPOSURE;
+        CR  : EXPOSURE := TRUE;
+        END;
+
+END;
+
+(* SPECIFY TIME DELAY selects the time delay between MCPU operations. *)
+
+PROCEDURE SPEC_TIME_DELAY;
+
+BEGIN
+
+   WRITE ('Time Delay = ');
+   RDLNREAL (SEQUENCE_TIME);
+   WRITELN;
+   MCPU_DELAY := ROUND (1000 * SEQUENCE_TIME);
+
+END;
+
+(* SPECIFY SEQUENCING selects if moves are sequenced or single-framed. *)
+
+PROCEDURE SPEC_SEQUENCING;
+
+VAR ANSWER : CHAR;
+
+BEGIN
+
+   WRITE ('Sequencing...Manual or Automatic? (M/A) ');
+   RDCON (ANSWER);
+   WRITELN;
+   WRITELN;
+   CASE ANSWER OF
+        'M' : SEQUENCED := FALSE;
+        'A' : SEQUENCED := TRUE;
+        'S' : SEQUENCED := NOT SEQUENCED;
+        CR  : SEQUENCED := TRUE;
+        END;
+
+   IF NOT SEQUENCED
+      THEN BEGIN
+           WRITE ('Remote Triggering? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN REMOTE := TRUE
+              ELSE REMOTE := FALSE;
+           END;
+
+   IF SEQUENCED
+      THEN WRITELN ('Axis Movements Sequenced by ANIMAL...')
+      ELSE WRITELN ('Axis Movements Single-Stepped by User...');
+   WRITELN;
+
+END;
+
+(* SPECIFY DISPLAY selects if full status are displayed at run-time. *)
+
+PROCEDURE SPEC_DISPLAY;
+
+VAR ANSWER : CHAR;
+
+BEGIN
+
+   WRITE ('Display Active? (Y/N) ');
+   RDCON (ANSWER);
+   WRITELN;
+   WRITELN;
+   CASE ANSWER OF
+        'Y' : DISPLAY := TRUE;
+        'N' : DISPLAY := FALSE;
+        'D' : DISPLAY := NOT DISPLAY;
+        CR  : DISPLAY := TRUE;
+        END;
+
+END;
+
+

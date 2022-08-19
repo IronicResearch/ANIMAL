@@ -1,0 +1,129 @@
+
+(* OUTPUT COMMAND outputs an ASCII character command to the MCPU. *)
+(* Note: OUTCMD passes by value, whereas OUTSIO passes by reference. *)
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+
+END;
+
+(* OVERHEAR commands the MCPU to not respond again until all axes are over. *)
+
+PROCEDURE OVERHEAR;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+     REPEAT
+          INSIO (BYTE);
+     UNTIL BYTE = 'R';
+
+     OUTCMD ('W');
+
+     OUTCMD ('O');
+
+     OUTCMD ('Z');
+
+END;
+
+(* WAITOVER waits until all MCPU axes are over. *)
+
+{PROCEDURE WAITOVER;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+     OVERHEAR;
+
+     REPEAT
+          INSIO (BYTE);
+     UNTIL BYTE = 'R';
+     OUTCMD ('Z');
+
+END;}
+
+(* CLEAR SEQUENCE clears out the currently running MCPU axis sequence.*)
+
+PROCEDURE CLEAR_SEQUENCE;
+   FORWARD;
+
+(* WAITOVER monitors both MCPU serial status and ANIMAL user console status. *)
+(* Waits for either MCPU Ready or ANIMAL User Quit. *)
+
+PROCEDURE WAITOVER;
+   FORWARD;
+
+(* INTBYTE converts a 16-bit Pascal integer into its corresponding
+(* two 8-bit bytes for output to the serial interface. *)
+
+PROCEDURE INTBYTE (VAR INTVAL : INTEGER; VAR BYTE_L, BYTE_H : CHAR);
+
+BEGIN
+
+   BYTE_H := CHR (INTVAL DIV 256);
+   BYTE_L := CHR (INTVAL MOD 256);
+
+END;
+
+(* BYTEINT converts two 8-bit bytes back into a 16-bit Pascal integer
+(* for input from the serial interface. *)
+
+PROCEDURE BYTEINT (VAR BYTE_L, BYTE_H : CHAR; VAR INTVAL : INTEGER);
+
+BEGIN
+
+   INTVAL := ORD (BYTE_H) * 256 + ORD (BYTE_L);
+
+END;
+
+(* REALBYTE converts a 24-bit Pascal real into its corresponding
+(* three 8-bit bytes for output to the serial interface. *)
+
+PROCEDURE REALBYTE (VAR REALVAL : REAL; VAR BYTE_L, BYTE_H, BYTE_X : CHAR);
+
+VAR XX : INTEGER;
+    HH : INTEGER;
+    LL : INTEGER;
+    HHLL : REAL;
+    XXHHLL : REAL;
+
+BEGIN
+
+   IF REALVAL > 16777215.0
+      THEN XXHHLL := 16777215.0         (* max 24-bit real value *)
+      ELSE XXHHLL := REALVAL + 0.5;     (* real number round up *)
+
+   XX := TRUNC (XXHHLL / 65536.0);
+
+   HHLL := XXHHLL - XX * 65536.0;
+
+   HH := TRUNC (HHLL / 256.0);
+
+   LL := TRUNC (HHLL - HH * 256.0);
+
+   BYTE_X := CHR (XX);
+   BYTE_H := CHR (HH);
+   BYTE_L := CHR (LL);
+
+END;
+
+(* BYTEREAL converts three 8-bit bytes back into a 24-bit Pascal real
+(* for input from the serial interface. *)
+
+PROCEDURE BYTEREAL (VAR BYTE_L, BYTE_H, BYTE_X : CHAR; VAR REALVAL : REAL);
+
+BEGIN
+
+   REALVAL := ORD (BYTE_X) * 65536.0 + ORD (BYTE_H) * 256.0 + ORD (BYTE_L);
+
+   IF REALVAL > 8388607.0
+      THEN REALVAL := REALVAL - 16777216.0;     (* 2s complement wraparound *)
+
+END;
+
+

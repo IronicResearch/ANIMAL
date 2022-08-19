@@ -1,0 +1,602 @@
+
+(* Overide operations for direct MCPU control. *)
+
+(* GO CAMERA runs Camera directly in the overide mode. *)
+
+PROCEDURE GO_CAMERA;
+
+VAR CH : CHAR;
+    SELECTION : BOOLEAN;
+    N : INTEGER;
+
+PROCEDURE CAMERA_MENU;
+
+BEGIN
+
+   WRITELN ('Camera Selection Menu:');
+   WRITELN;
+   WRITELN ('   C : Camera Exposure Count ');
+   WRITELN ('   E : Exposure Time Interval');
+   WRITELN ('   A : Advance Only Frame Count');
+   WRITELN ('   S : Shutter Open/Closed');
+   WRITELN ('   F : Fade In/Out Frame Count');
+   WRITELN ('   V : Variable Shutter Angle');
+   WRITELN ('   Q : Quit Camera Selections');
+   WRITELN;
+
+END;
+
+BEGIN
+
+   CAMERA_MENU;
+
+   SELECTION := FALSE;
+
+   REPEAT
+
+      RDKEY (CH);
+
+      CASE CH OF
+
+           'C' : SPEC_CAMERA_COUNT;
+
+           'E' : SPEC_EXPOSURE_TIME;
+
+           'A' : SPEC_ADVANCE_ONLY;
+
+           'S' : SPEC_SHUTTER;
+
+           'V' : SPEC_VARIABLE_SHUTTER;
+
+           'F' : BEGIN
+                 SPEC_FADE;
+                 IF FADE
+                    THEN FOR N := 1 TO FADE_LENGTH DO
+                             BEGIN
+                             EXPOSEIT;
+                             WAITOVER;
+                             FADEIT;
+                             WAITOVER;
+                             END;
+                 TOTAL_COUNT := TOTAL_COUNT + FADE_LENGTH;
+                 FADE := FALSE;
+                 END;
+
+           'H' : CAMERA_MENU;
+
+           '?' : CAMERA_MENU;
+
+           'Q' : SELECTION := TRUE;
+
+           CR :  SELECTION := TRUE;
+
+           ELSE  WRITELN (CH);
+
+           END; (* CASE selection *)
+
+   UNTIL SELECTION;
+
+   WRITELN ('Quit Camera Selections');
+   WRITELN;
+
+END;    (* procedure GO_CAMERA *)
+
+(* GO INITIALIZE initializes a selected MCPU axis.*)
+
+PROCEDURE GO_INIT_MOTOR (VAR M : AXIS);
+
+VAR ANSWER : CHAR;
+
+BEGIN
+
+   WRITE ('Acceleration? (Y/N) ');
+   RDCON (ANSWER);
+   WRITELN;
+
+   IF ANSWER <> 'Y'
+      THEN BEGIN
+           M.ACCELST := FALSE;
+           WRITE ('Constant Speed = ');
+           RDLNINT (M.SPEED);
+           END   (* IF constant *)
+
+      ELSE BEGIN
+           M.ACCELST := TRUE;
+           WRITE ('Low Speed = ');
+           RDLNINT (M.LOWSPD);
+           WRITE ('High Speed = ');
+           RDLNINT (M.HIGHSPD);
+           WRITE ('Ramp Count = ');
+           RDLNINT (M.RAMPCNT);
+           M.RAMPK := 0;
+           END;  (* IF acceleration *)
+
+   INITM (M);
+   WRITELN;
+
+END;
+
+(* GO RUN runs a selected MCPU axis (step count only).*)
+
+PROCEDURE GO_RUN_MOTOR (VAR M : AXIS);
+
+BEGIN
+
+   WRITE (' Step Count = ');
+   RDLNREAL (M.STEPCNT);
+   PREPM (M);
+   RUNM (M);
+
+END;
+
+(* GO TO POSITION goes to a selected MCPU axis position (step count only).*)
+
+PROCEDURE GOTO_POSITION (VAR A : AXIS_TABLE);
+
+VAR DESTN : REAL;
+
+BEGIN
+
+   WRITE (' Position = ');
+   RDLNREAL (DESTN);
+   GETCOUNT (A.C);
+   A.M.STEPCNT := DESTN - A.C.COUNT;
+   PREPM (A.M);
+   RUNM (A.M);
+
+END;
+
+(* GO LIMIT MOTOR runs a selected MCPU motor into a limit switch.*)
+
+PROCEDURE GO_LIMIT_MOTOR (VAR M : AXIS);
+
+VAR CH : CHAR;
+
+BEGIN
+
+   WRITE (' Direction? (F/R) ');
+   RDCON (CH);
+   WRITELN;
+   IF CH = 'R'
+      THEN M.DIR := REV
+      ELSE M.DIR := FWD;
+   HOMEM (M);
+
+END;
+
+(* GO UN-LIMIT MOTOR reverses a selected motor out of a limit switch.*)
+
+PROCEDURE GO_UNLIMIT_MOTOR (VAR M : AXIS);
+
+VAR CH : CHAR;
+    I : INTEGER;
+
+BEGIN
+
+   WRITE ( ' Direction? (F/R) ');
+   RDCON (CH);
+   WRITELN;
+   IF CH = 'R'
+      THEN M.DIR := REV
+      ELSE M.DIR := FWD;
+
+   FOR I := 1 TO 10 DO
+       BEGIN
+       PULSEM (M);
+       DELAY (100);
+       END;
+
+END;
+
+(* NO LIMIT turns off the axis' switch mask for un-interrupted operation.*)
+
+PROCEDURE NOLIMITM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTORNO : CHAR;
+    SPEED : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';     (* Ready ? *)
+
+   OUTCMD ('W');         (* Wake Up *)
+
+   OUTCMD ('D');         (* Drive *)
+
+   OUTCMD ('M');         (* Motor # *)
+   MOTORNO := CHR (M.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('H');         (* Home *)
+
+   OUTCMD ('V');         (* Velocity *)
+   SPEED := CHR (0);     (* 0 --> Mask Off *)
+   OUTSIO (SPEED);
+   OUTSIO (SPEED);
+
+   OUTCMD ('O');         (* Overhear *)
+
+   OUTCMD ('Z');         (* Zzzzz *)
+
+END;
+
+(* NO LIMIT turns off the axis' switch mask for un-interrupted operation.*)
+(* Includes INITM for re-initializing motor speed when through. *)
+
+PROCEDURE NO_LIMIT_MOTOR (VAR M : AXIS);
+
+BEGIN
+
+   NOLIMITM (M);         (* No Limit switch *)
+   WAITBACK;
+
+   INITM (M);            (* Re-Init speed *)
+
+END;
+
+(* KILL EM ALL kills any and all MCPU motor axes, running or not. *)
+
+PROCEDURE KILL_EM_ALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';              (* Ready ? *)
+
+   OUTCMD ('W');                  (* Wake Up *)
+
+   FOR I := 1 TO MAX_AXES DO
+       KILLX (AA [I].M);            (* Kill block *)
+
+   OUTCMD ('Z');                  (* Zzzzz *)
+
+END;
+
+(* ZERO EM ALL zeroes all MCPU step positions. *)
+
+PROCEDURE ZERO_EM_ALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';              (* Ready ? *)
+
+   OUTCMD ('W');                  (* Wake Up *)
+
+   FOR I := 1 TO MAX_AXES DO
+       ZEROX (AA [I].M);            (* Zero block *)
+
+   OUTCMD ('Z');                  (* Zzzzz *)
+
+END;
+
+(* CHECK STATUS gets the motion status for an MCPU axis. *)
+
+PROCEDURE CHECK_STATUS (VAR C : COUNT_TABLE);
+
+BEGIN
+
+   GETSTAT (C);
+   WRITE (' = ');
+   WRITE (C.STAT);
+   CASE C.STAT OF
+        'D' : WRITE ('...Drive Done');
+        'M' : WRITE ('...Motor Moving');
+        'S' : WRITE ('...Switch Stop');
+        'E' : WRITE ('...Existance Error');
+        'R' : WRITE ('...(Ready MCPU -- try again)');
+        'N' : WRITE ('...(Not Ready MCPU -- try again)');
+        ELSE  WRITE ('...???');
+        END;  (* CASE axis status *)
+   WRITELN;
+
+END;
+
+(* FULL STATUS fetches all the current info for all MCPU axes. *)
+
+PROCEDURE FULL_STATUS;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';     (* Ready ? *)
+
+   OUTCMD ('W');         (* Wake Up *)
+
+   FOR I := 1 TO MAX_AXES DO
+       STATX (AA [I].C);         (* Status ? *)
+
+   OUTCMD ('Z');         (* Zzzzz *)
+
+END;
+
+(* DISPLAY_MENU displays the MCPU menu for the manual overide program. *)
+
+PROCEDURE DISPLAY_MENU;
+
+BEGIN
+
+WRITELN ('ANIMAL Axis MCPU Overide Selections:');
+WRITELN;
+WRITELN ('   R : Run a motor axis           |   L : Limit switch position');
+WRITELN ('   K : Kill motor motion          |   U : Un-limit switch position');
+WRITELN ('   J : Jog pair of motor axes     |   N : No limit switches active');
+WRITELN;
+WRITELN ('   T : Table for all motor axes   |   I : Initialize default speeds');
+WRITELN ('   S : Status running report      |   M : Modify motor speeds');
+WRITELN ('   P : Position step count report |   Z : Zero position step count');
+WRITELN;
+WRITELN ('   G : Goto axis position         |   H : Help -- Display this menu');
+WRITELN ('   C : Camera functions           |   Q : Quit Overide mode program');
+WRITELN;
+
+END;  (* procedure DISPLAY_MENU *)
+
+(* TABLE AXES displays the table of MCPU axes available to ANIMAL.*)
+
+PROCEDURE TABLE_AXES;
+
+BEGIN
+
+GET_AXIS_ARRAY;
+
+WRITE   ('AXIS #   DESCRIPTION  ', 'POSITION':8, 'STAT':5, '   |   ');
+WRITELN ('AXIS #   DESCRIPTION  ', 'POSITION':8, 'STAT':5);
+WRITELN;
+WRITE   ('PN # 17 : Pan        :', PN.C.COUNT:8:0, PN.C.STAT:5, '   |   ');
+WRITELN ('FF #  1 : F Focus    :', FF.C.COUNT:8:0, FF.C.STAT:5);
+WRITE   ('TL # 19 : Tilt       :', TL.C.COUNT:8:0, TL.C.STAT:5, '   |   ');
+WRITELN ('ZM #  3 : Zoom Lens  :', ZM.C.COUNT:8:0, ZM.C.STAT:5);
+WRITE   ('BM # 27 : Boom       :', BM.C.COUNT:8:0, BM.C.STAT:5, '   |   ');
+WRITELN ('XA #  2 : Aux Line A :', XA.C.COUNT:8:0, XA.C.STAT:5);
+WRITE   ('HT #  7 : Height     :', HT.C.COUNT:8:0, HT.C.STAT:5, '   |   ');
+WRITELN ('XB #  4 : Aux Line B :', XB.C.COUNT:8:0, XB.C.STAT:5);
+WRITE   ('TR # 29 : Track      :', TR.C.COUNT:8:0, TR.C.STAT:5, '   |   ');
+WRITELN ('XC #  6 : Aux Line C :', XC.C.COUNT:8:0, XC.C.STAT:5);
+WRITE   ('RT # 21 : Rotation   :', RT.C.COUNT:8:0, RT.C.STAT:5, '   |   ');
+WRITELN ('XD #  8 : Aux Line D :', XD.C.COUNT:8:0, XD.C.STAT:5);
+WRITE   ('LP #  9 : Loop Lens  :', LP.C.COUNT:8:0, LP.C.STAT:5, '   |   ');
+WRITELN ('XE # 10 : Aux Line E :', XE.C.COUNT:8:0, XE.C.STAT:5);
+WRITE   ('GR # 11 : Gir Lens   :', GR.C.COUNT:8:0, GR.C.STAT:5, '   |   ');
+WRITELN ('XF # 12 : Aux Line F :', XF.C.COUNT:8:0, XF.C.STAT:5);
+WRITE   ('RL # 13 : Roll Lens  :', RL.C.COUNT:8:0, RL.C.STAT:5, '   |   ');
+WRITELN ('XG # 14 : Aux Line G :', XG.C.COUNT:8:0, XG.C.STAT:5);
+WRITE   ('LV # 23 : Level      :', LV.C.COUNT:8:0, LV.C.STAT:5, '   |   ');
+WRITELN;
+WRITELN;
+
+END;
+
+(* OVERIDE allows the user to overide the MCPU axes outside of the regular
+(* ANIMAL program sequences. *)
+
+PROCEDURE OVERIDE;
+
+VAR CH : CHAR;
+    ANSWER : CHAR;
+    QUITTING_TIME : BOOLEAN;
+
+    A : AXIS_TABLE;
+    XAXISNO : CHAR;
+    YAXISNO : CHAR;
+
+    ID : CHAR2;
+    OK : BOOLEAN;
+    AX : AXIS_TABLE;
+
+BEGIN
+
+   FULL_STATUS;
+
+   TABLE_AXES;
+
+   DISPLAY_MENU;
+
+   QUITTING_TIME := FALSE;
+
+   REPEAT
+
+      RDCON (CH);
+
+      CASE CH OF
+
+           'K' : BEGIN
+                 WRITE ('ill which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 WRITELN;
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN STOPM (AX.M)
+                    ELSE IF ID = 'AA'
+                            THEN KILL_EM_ALL;
+                 END;  (* Kill *)
+
+           'R' : BEGIN
+                 WRITE ('un which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN GO_RUN_MOTOR (AX.M)
+                    ELSE WRITELN;
+                 SWAP_AXIS_BACK (ID, AX);
+                 END;  (* Run *)
+
+           'G' : BEGIN
+                 WRITE ('oto which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN GOTO_POSITION (AX)
+                    ELSE WRITELN;
+                 SWAP_AXIS_BACK (ID, AX);
+                 END;  (* Goto *)
+
+           'M' : BEGIN
+                 WRITE ('odify which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 WRITELN;
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK THEN GO_INIT_MOTOR (AX.M);
+                 SWAP_AXIS_BACK (ID, AX);
+                 END;  (* Modify *)
+
+           'I' : BEGIN
+                 WRITELN ('nitializing Default Speeds...');
+                 INIT_AXES;
+                 END;  (* Initialize *)
+
+           'C' : BEGIN
+                 WRITELN ('amera Functions...');
+                 WRITELN;
+                 GO_CAMERA;
+                 END;  (* Camera *)
+
+           'L' : BEGIN
+                 WRITE ('imit which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN GO_LIMIT_MOTOR (AX.M)
+                    ELSE WRITELN;
+                 SWAP_AXIS_BACK (ID, AX);
+                 END;  (* Limit *)
+
+           'U' : BEGIN
+                 WRITE ('n-Limit which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN GO_UNLIMIT_MOTOR (AX.M)
+                    ELSE WRITELN;
+                 SWAP_AXIS_BACK (ID, AX);
+                 END;  (* Un-limit *)
+
+           'N' : BEGIN
+                 WRITE ('o Limit which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 WRITELN;
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK THEN NO_LIMIT_MOTOR (AX.M);
+                 SWAP_AXIS_BACK (ID, AX);
+                 END;  (* No limit *)
+
+           'Z' : BEGIN
+                 WRITE ('ero which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 WRITELN;
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN ZEROM (AX.M)
+                    ELSE IF ID = 'AA'
+                            THEN ZERO_EM_ALL;
+                 END;  (* Zero *)
+
+           'P' : BEGIN
+                 WRITE ('osition for which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN BEGIN
+                         GETCOUNT (AX.C);
+                         WRITELN (' = ', AX.C.COUNT:8:0);
+                         SWAP_AXIS_BACK (ID, AX);
+                         END
+                    ELSE WRITELN;
+                 END;  (* Position *)
+
+           'S' : BEGIN
+                 WRITE ('tatus for which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK
+                    THEN CHECK_STATUS (AX.C)
+                    ELSE WRITELN;
+                 SWAP_AXIS_BACK (ID, AX);
+                 END;  (* Status *)
+
+           'J' : BEGIN
+                 WRITELN ('og Axes with CRT terminal arrow keys...');
+                 WRITELN;
+
+                 WRITE ('Use Left/Right Arrow Keys for which Axis? ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 WRITELN;
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK THEN XAXISNO := CHR (AX.M.MOTORNO)
+                       ELSE XAXISNO := CHR (PN.M.MOTORNO);
+
+                 WRITE ('Use  Up/Down  Arrow Keys for which Axis?  ');
+                 RDCON (ID [1]);
+                 RDCON (ID [2]);
+                 WRITELN;
+                 CASE_AXIS (ID, OK, AX);
+                 IF OK THEN YAXISNO := CHR (AX.M.MOTORNO)
+                       ELSE YAXISNO := CHR (TL.M.MOTORNO);
+
+                 WRITELN;
+                 WRITELN ('Press RETURN when through jogging');
+                 OVERUN (XAXISNO, YAXISNO);
+                 WRITELN;
+                 WRITELN ('Arrow Key Overide Completed');
+                 WRITELN;
+                 END;  (* Jogging arrow keys *)
+
+           'H' : BEGIN
+                 WRITELN ('elp...');
+                 WRITELN;
+                 DISPLAY_MENU;
+                 END;  (* Help *)
+
+           '?' : BEGIN
+                 WRITELN (' -- Help...');
+                 WRITELN;
+                 DISPLAY_MENU;
+                 END;  (* Help *)
+
+           'T' : BEGIN
+                 WRITELN ('able of MCPU Axes:');
+                 WRITELN;
+                 FULL_STATUS;
+                 TABLE_AXES;
+                 END;  (* Table of axes *)
+
+           'Q' : BEGIN
+                 WRITE ('uit Overide...for sure? (Y/N) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 WRITELN;
+                 IF ANSWER = 'Y'
+                    THEN QUITTING_TIME := TRUE;
+                 END;  (* CASE Quit *)
+
+           ELSE  WRITELN;
+
+           END; (* CASE selection *)
+
+   UNTIL QUITTING_TIME;
+
+END;  (* procedure OVERIDE *)
+

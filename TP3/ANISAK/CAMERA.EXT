@@ -1,0 +1,261 @@
+
+(* ANIMAL Camera Function Options. *)
+
+(* SPECIFY CAMERA COUNT runs camera exposure frames. *)
+
+PROCEDURE SPEC_CAMERA_COUNT;
+
+VAR EXPOSURE_COUNT : INTEGER;
+
+BEGIN
+
+   WRITE ('Camera Count = ');
+   RDLNINT (EXPOSURE_COUNT);
+   IF EXPOSURE_COUNT < 0
+      THEN E.M.DIR := REV
+      ELSE E.M.DIR := FWD;
+   E.M.STEPCNT := ABS (EXPOSURE_COUNT);
+   RUNM (E.M);
+   TOTAL_COUNT := TOTAL_COUNT + EXPOSURE_COUNT;
+
+END;
+
+(* SPECIFY ADVANCE ONLY runs advance only frames. *)
+
+PROCEDURE SPEC_ADVANCE_ONLY;
+
+VAR ADVANCE_COUNT : INTEGER;
+
+BEGIN
+
+   WRITE ('Advance Count = ');
+   RDLNINT (ADVANCE_COUNT);
+   IF ADVANCE_COUNT < 0
+      THEN A.M.DIR := REV
+      ELSE A.M.DIR := FWD;
+   A.M.STEPCNT := ABS (ADVANCE_COUNT);
+   RUNM (A.M);
+   TOTAL_COUNT := TOTAL_COUNT + ADVANCE_COUNT;
+
+END;
+
+(* SPECIFY EXPOSURE TIME inputs the exposure time. *)
+
+PROCEDURE SPEC_EXPOSURE_TIME;
+
+BEGIN
+
+   WRITE ('Exposure Time = ');
+   RDLNREAL (EXPOSURE_TIME);
+
+   E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
+   E.M.ACCELST := FALSE;
+   INITM (E.M);
+
+END;
+
+(* SPECIFY SHUTTER toggles the main shutter open or closed. *)
+
+PROCEDURE SPEC_SHUTTER;
+
+BEGIN
+
+   WRITE ('Shutter...');
+   HOMEM (E.M);
+   ROTOSCOPING := NOT ROTOSCOPING;
+   IF ROTOSCOPING
+      THEN WRITELN ('Open')
+      ELSE WRITELN ('Closed');
+
+END;
+
+(* SPECFIY VARIABLE SHUTTER opens the variable shutter angle. *)
+
+PROCEDURE SPEC_VARIABLE_SHUTTER;
+
+BEGIN
+
+   WRITE ('Variable Shutter Angle = ');
+   RDLNREAL (SHUTTER_ANGLE);
+   VARIABLE_SHUTTER (SHUTTER_ANGLE);
+
+END;
+
+(* SPECIFY FADE programs a fade sequence. *)
+
+PROCEDURE SPEC_FADE;
+
+VAR ANSWER : CHAR;
+
+BEGIN
+
+   WRITE ('Fade Length Frame Count = ');
+   RDLNINT (FADE_LENGTH);
+   FADE := (FADE_LENGTH > 0);
+
+   IF FADE
+      THEN BEGIN
+      WRITE ('Maximum Fade Exposure Time = ');
+      RDLNREAL (EXPOSURE_TIME);
+      WRITELN;
+
+      WRITE ('Fade or Dissolve? (F/D) ');
+      RDCON (ANSWER);
+      WRITELN;
+      DISSOLVE := (ANSWER = 'D');
+
+      IF DISSOLVE
+         THEN FADEIN := FALSE
+         ELSE BEGIN
+              WRITE ('Fade In or Out? (I/O) ');
+              RDCON (ANSWER);
+              WRITELN;
+              FADEIN := (ANSWER = 'I');
+              END;
+
+      WRITE ('Linear, Sine, or Logarithmic? (L/S/G) ');
+      RDCON (ANSWER);
+      WRITELN;
+      WRITELN;
+      FADELOG := (ANSWER = 'G');
+      FADESIN := (ANSWER = 'S');
+
+      IF FADELOG
+         THEN BEGIN
+         WRITE ('Number of f/stops to Fade = ');
+         RDLNREAL (NSTOPS);
+         WRITE ('Logarithmic Fade Taper  % = ');
+         RDLNREAL (FADE_TAPER);
+         TAPERED_FADE := (FADE_TAPER > 0.0);
+
+         IF TAPERED_FADE
+            THEN BEGIN
+            WRITE ('Sine or Linear Taper? (S/L) ');
+            RDCON (ANSWER);
+            WRITELN;
+            WRITELN;
+            TAPERED_SINE := (ANSWER = 'S');
+            END;
+         END;   (* IF Logarithmic Fade *)
+
+      PRE_COMPUTE_FADE;
+      END;   (* IF Fade *)
+
+END;
+
+(* SPECIFY FRAME STEP selects the number of exposures per increment. *)
+
+PROCEDURE SPEC_FRAME_STEP;
+
+BEGIN
+
+   WRITE ('Number of Exposures per Interval = ');
+   RDLNINT (FRAME_STEP);
+   IF FRAME_STEP < 1
+      THEN FRAME_STEP := 1;
+
+END;
+
+(* SPECIFY TOTAL COUNT sets the total cummulative exposure count. *)
+
+PROCEDURE SPEC_TOTAL_COUNT;
+
+BEGIN
+
+   WRITE ('Total Count = ');
+   RDLNINT (TOTAL_COUNT);
+
+END;
+
+(* SPECIFY CAMERA DIRECTION sets the direction of film travel for exposure. *)
+
+PROCEDURE SPEC_CAMERA_DIRECTION;
+
+VAR ANSWER : CHAR;
+
+BEGIN
+
+   WRITE ('Direction? (F/R) ');
+   RDCON (ANSWER);
+   WRITELN;
+   IF ANSWER = 'R'
+      THEN E.M.DIR := REV
+      ELSE E.M.DIR := FWD;
+
+END;
+
+(* SPECIFY_CAMERA allows the user to specify the camera parameters. *)
+
+PROCEDURE SPEC_CAMERA;
+
+VAR CH : CHAR;
+    SELECTION : BOOLEAN;
+    SHUTTER_STAT : STRING [10];
+    DIRECTION_STAT : STRING [10];
+
+BEGIN
+
+   IF ROTOSCOPING
+      THEN SHUTTER_STAT := 'OPEN'
+      ELSE SHUTTER_STAT := 'CLOSED';
+
+   IF E.M.DIR = REV
+      THEN DIRECTION_STAT := 'REV'
+      ELSE DIRECTION_STAT := 'FWD';
+
+   WRITELN ('Camera Selection Menu:');
+   WRITELN;
+   WRITELN ('   E : Exposure Time Interval        |', EXPOSURE_TIME:10:2);
+   WRITELN ('   N : Number of Exposures per Move  |', FRAME_STEP:10);
+   WRITELN ('   T : Total Net Frame Count         |', TOTAL_COUNT:10);
+   WRITELN ('   S : Shutter Open/Closed           |', SHUTTER_STAT:10);
+   WRITELN ('   D : Direction Forward/Reverse     |', DIRECTION_STAT:10);
+   WRITELN ('   V : Variable Shutter Angle        |', SHUTTER_ANGLE:10:1);
+   WRITELN ('   F : Fade In/Out Sequence          |', FADE_LENGTH:10);
+   WRITELN ('   A : Advance Only Overide');
+   WRITELN ('   C : Camera Exposure Overide');
+   WRITELN ('   Q : Quit Camera Selections');
+   WRITELN;
+
+   SELECTION := FALSE;
+
+   REPEAT
+
+      RDKEY (CH);
+
+      CASE CH OF
+
+           'C' : SPEC_CAMERA_COUNT;
+
+           'A' : SPEC_ADVANCE_ONLY;
+
+           'E' : SPEC_EXPOSURE_TIME;
+
+           'S' : SPEC_SHUTTER;
+
+           'V' : SPEC_VARIABLE_SHUTTER;
+
+           'F' : SPEC_FADE;
+
+           'N' : SPEC_FRAME_STEP;
+
+           'T' : SPEC_TOTAL_COUNT;
+
+           'D' : SPEC_CAMERA_DIRECTION;
+
+           'Q' : SELECTION := TRUE;
+
+           CR  : SELECTION := TRUE;
+
+           ELSE  WRITELN (CH);
+
+           END; (* CASE selection *)
+
+   UNTIL SELECTION;
+
+   WRITELN ('Quit Camera Selections');
+   WRITELN;
+
+END;    (* procedure SPEC_CAMERA *)
+
+

@@ -1,0 +1,422 @@
+
+(* MCPU Serial Command Sequences for communications between
+(* the system's desktop host computer and the Motion Control
+(* Processor Unit. *)
+
+(* 'DRIVE_MOTOR' fetches the step count, step rate, and direction
+(* for the specified motor, and transfers this info down the line
+(* to the STD system MCPU. *)
+
+PROCEDURE DRIVEM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTOR_NO : CHAR;
+    COUNT_L : CHAR;
+    COUNT_H : CHAR;
+    RATE_L : CHAR;
+    RATE_H : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);           (* Ready? *)
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');              (* Wake up... *)
+
+   OUTCMD ('D');              (* time to Drive... *)
+
+   OUTCMD ('M');              (* Motor # *)
+   MOTOR_NO := CHR (M.MOTORNO);
+   OUTSIO (MOTOR_NO);
+
+   OUTCMD ('N');              (* N step count *)
+   INTBYTE (M.STEPCNT, COUNT_L, COUNT_H);
+   OUTSIO (COUNT_L);
+   OUTSIO (COUNT_H);
+
+   OUTCMD ('V');              (* Velocity *)
+   INTBYTE (M.SPEED, RATE_L, RATE_H);
+   OUTSIO (RATE_L);
+   OUTSIO (RATE_H);
+
+   IF M.DIR = FWD
+      THEN OUTCMD ('F')       (* Forward Direction *)
+      ELSE OUTCMD ('R');      (* Reverse Direction *)
+
+   OUTCMD ('Z');              (* Zzzzz...go back to sleep *)
+
+END;
+
+(* 'INITIALIZE_MOTOR' initializes the specified motor for
+(* either constant speed or ramping speed operation. *)
+(* Subsequent 'RUN_MOTOR' sequences would run the motor
+(* at this particular set of speed characteristics. *)
+
+PROCEDURE INITM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTOR_NO : CHAR;
+    COUNT_L : CHAR;
+    COUNT_H : CHAR;
+    RATE_L : CHAR;
+    RATE_H : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+   
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);          (* Ready? *)
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');             (* Wake up... *)
+
+   OUTCMD ('I');             (* Initialize... *)
+
+   OUTCMD ('M');             (* Motor # *)
+   MOTOR_NO := CHR (M.MOTORNO);
+   OUTSIO (MOTOR_NO);
+
+   IF NOT M.ACCELST
+
+      THEN BEGIN
+           OUTCMD ('V');           (* Velocity *)
+           INTBYTE (M.SPEED, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);
+           END
+
+      ELSE BEGIN
+           OUTCMD ('A');           (* Acceleration *)
+           INTBYTE (M.LOWSPD, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);        (* Low Speed *)
+
+           INTBYTE (M.HIGHSPD, RATE_L, RATE_H);
+           OUTSIO (RATE_L);
+           OUTSIO (RATE_H);        (* High Speed *)
+
+           INTBYTE (M.RAMPCNT, COUNT_L, COUNT_H);
+           OUTSIO (COUNT_L);
+           OUTSIO (COUNT_H);       (* Ramp Count *)
+
+           INTBYTE (M.RAMPK, COUNT_L, COUNT_H);
+           OUTSIO (COUNT_L);
+           OUTSIO (COUNT_H);       (* Ramping Constant *)
+           END;               
+
+   OUTCMD ('Z');              (* Zzzzz *)
+
+END;
+
+(* 'RUN_MOTOR' fetches the step count and direction only
+(* for the specified motor, and transfers this info down the line
+(* to the STD system MCPU. *)
+
+PROCEDURE RUNM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTOR_NO : CHAR;
+    COUNT_L : CHAR;
+    COUNT_H : CHAR;
+    RATE_L : CHAR;
+    RATE_H : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+   
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);          (* Ready? *)
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');             (* Wake up... *)
+
+   OUTCMD ('D');             (* time to Drive... *)
+
+   OUTCMD ('M');             (* Motor # *)
+   MOTOR_NO := CHR (M.MOTORNO);
+   OUTSIO (MOTOR_NO);
+
+   OUTCMD ('N');              (* step count *)
+   INTBYTE (M.STEPCNT, COUNT_L, COUNT_H);
+   OUTSIO (COUNT_L);
+   OUTSIO (COUNT_H);
+
+   IF M.DIR = FWD
+      THEN OUTCMD ('F')       (* Forward *)
+      ELSE OUTCMD ('R');      (* Reverse *)
+
+   OUTCMD ('Z');              (* Zzzzz *)
+
+END;
+
+(* 'STOP_MOTOR' stops the specified motor in mid flight. *)
+
+PROCEDURE STOPM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTOR_NO : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+   
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);          (* Ready? *)
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');             (* Wake up *)
+
+   OUTCMD ('K');             (* Kill... *)
+
+   OUTCMD ('M');             (* Motor # *)
+   MOTOR_NO := CHR (M.MOTORNO);
+   OUTSIO (MOTOR_NO);
+
+   OUTCMD ('Z');             (* Zzzzz *)
+
+END;
+
+(* 'KILL_EM' does the same thing as 'STOP_EM', only more cold-bloodedly. *)
+
+PROCEDURE KILLM (VAR M : AXIS);
+
+BEGIN
+
+     STOPM (M);
+
+END;
+
+(* 'PULSE_MOTOR' pulses the specified motor 1 single step. *)
+
+PROCEDURE PULSEM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTOR_NO : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+   
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);           (* Ready? *)
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');              (* Wake up... *)
+
+   OUTCMD ('D');              (* Drive... *)
+
+   OUTCMD ('M');              (* Motor # *)
+   MOTOR_NO := CHR (M.MOTORNO);
+   OUTSIO (MOTOR_NO);
+
+   OUTCMD ('P');              (* Pulse 1 single step *)
+
+   IF M.DIR = FWD
+      THEN OUTCMD ('F')       (* Forward *)
+      ELSE OUTCMD ('R');      (* Reverse *)
+
+   OUTCMD ('Z');              (* Zzzzz *)
+
+END;
+
+(* HOME_MOTOR homes the specified motor into its homed position. *)
+(* The direction of motion has been previously defined. *)
+
+PROCEDURE HOMEM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTOR_NO : CHAR;
+    SPEED : INTEGER;
+    BYTE_L : CHAR;
+    BYTE_H : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);           (* Ready? *)
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');              (* Wake up... *)
+
+   OUTCMD ('D');              (* Drive... *)
+
+   OUTCMD ('M');              (* Motor # *)
+   MOTOR_NO := CHR (M.MOTORNO);
+   OUTSIO (MOTOR_NO);
+
+   OUTCMD ('H');              (* Home it home... *)
+
+   IF M.DIR = FWD
+      THEN OUTCMD ('F')       (* Forward *)
+      ELSE OUTCMD ('R');      (* Reverse *)
+
+   OUTCMD ('Z');              (* Zzzzz... *)
+
+END;
+
+(* 'ZERO_MOTOR' zeroes out the net cummulative step count  
+(* for the specified MCPU motor axis. *)
+
+PROCEDURE ZEROM (VAR M : AXIS);
+
+VAR BYTE : CHAR;
+    MOTOR_NO : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+   
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);          (* Ready? *)
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');             (* Wake up *)
+
+   OUTCMD ('0');             (* Zero... *)
+
+   OUTCMD ('M');             (* Motor # *)
+   MOTOR_NO := CHR (M.MOTORNO);
+   OUTSIO (MOTOR_NO);
+
+   OUTCMD ('Z');             (* Zzzzz *)
+
+END;
+
+(* GET_COUNT gets the current step count of a specified axis
+(* directly from the Motion Control Processor Unit. *)
+
+PROCEDURE GETCOUNT (VAR C : COUNT_TABLE);
+
+VAR BYTE : CHAR;
+    MOTORNO : CHAR;
+    COUNT_L : CHAR;
+    COUNT_H : CHAR;
+    COUNT : INTEGER;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');     (* protocol Wake-up *)
+
+   OUTCMD ('?');     (* step count inquiry *)
+
+   OUTCMD ('M');     (* Motor # *)
+   MOTORNO := CHR (C.AXISNO);
+   OUTSIO (MOTORNO);
+ 
+   OUTCMD ('L');     (* get Low byte *)
+   INSIO (COUNT_L);
+
+   OUTCMD ('H');     (* get High byte *)
+   INSIO (COUNT_H);
+
+   OUTCMD ('Z');     (* end of protocol sequence *)
+
+   BYTEINT (COUNT_L, COUNT_H, COUNT);
+   C.COUNT := COUNT;
+
+END;
+
+(* GET_STAT gets the current motion status of a specified MCPU axis. *)
+
+PROCEDURE GETSTAT (VAR C : COUNT_TABLE);
+
+VAR BYTE : CHAR;
+    MOTORNO : CHAR;
+    STAT : CHAR;
+
+PROCEDURE OUTCMD (BYTE : CHAR);
+
+BEGIN
+
+   OUTSIO (BYTE);
+
+END;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');     (* Wake-up *)
+
+   OUTCMD ('?');     (* Inquiry *)
+
+   OUTCMD ('M');     (* Motor # *)
+   MOTORNO := CHR (C.AXISNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('S');     (* get Status byte *)
+   INSIO (STAT);
+
+   OUTCMD ('Z');     (* Zzzzz *)
+
+   C.STAT := STAT;
+   IF STAT = 'E'     (* Error ? *)
+      THEN C.ERROR := TRUE
+      ELSE C.ERROR := FALSE;
+
+END;
+
+

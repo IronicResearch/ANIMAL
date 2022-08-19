@@ -1,0 +1,52 @@
+
+(* Triggers... *)
+
+(* OUTPIO outputs a byte to the parallel interface port. *)
+
+PROCEDURE OUTPIO (VAR B : BYTE_CHAR);
+
+BEGIN
+
+   PORTW [PIOL] := B;
+   PORTW [PIOH] := B;
+
+END;
+
+(* TRIGGER PULSE outputs a single trigger pulse (1 cycle). *)
+
+PROCEDURE TRIGGER_PULSE (VAR T : TRIGGER_TABLE);
+
+BEGIN
+
+   OUTPIO (T.TRIG);
+   DELAY (T.TIME);
+
+   OUTPIO (T.NULL);
+   DELAY (T.WAIT);
+
+END;
+
+(* SPECIFY TRIGGERS selects a trigger phase on or off. *)
+
+PROCEDURE SPEC_TRIGGERS;
+
+VAR ANSWER : CHAR;
+    PHASE : INTEGER;
+
+BEGIN
+
+   WRITE ('Remote Trigger Phase # ');
+   RDCON (ANSWER);
+   PHASE := ORD (ANSWER) - ORD ('0');
+   IF PHASE IN [1..4]
+      THEN BEGIN
+           WRITE (' Active? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           TRIGGER [PHASE].SPEC := (ANSWER = 'Y');
+           END;
+
+END;
+
+

@@ -1,0 +1,96 @@
+
+(* Screen display output functions, especially for ANIMAL. *)
+
+(* WAIT A SECOND pauses the program flow for 1 second. *)
+
+PROCEDURE WAIT_A_SECOND;
+
+BEGIN
+
+   DELAY (1000);
+
+END;
+
+(* WAIT pauses the program flow for N milliseconds. *)
+
+PROCEDURE WAIT (N : INTEGER);
+
+BEGIN
+
+   DELAY (N);
+
+END;
+
+(* AXIS LINES counts the number of specified ANIMAL axes.*)
+
+PROCEDURE AXIS_LINES (VAR S : INTEGER);
+   FORWARD;
+
+(* CLEAR SCREEN clears out the CRT terminal screen. *)
+
+PROCEDURE CLRSCRN;
+
+BEGIN
+
+   CLRSCR;
+
+END;
+
+(* CLEAR REST OF SCREEN clears out only the lower half of the screen. *)
+
+PROCEDURE CLREST;
+
+VAR N : INTEGER;
+    L : INTEGER;
+
+BEGIN
+
+   AXIS_LINES (L);
+   IF L = 0
+      THEN L := 7
+      ELSE L := L + 6;
+
+   FOR N := L TO 25 DO
+       BEGIN
+       GOTOXY (1,N);
+       CLREOL;
+       END;
+
+   GOTOXY (1,L);
+
+END;
+
+(* GOTO REST OF SCREEN goes to the rest of screen without erasing it. *)
+
+PROCEDURE GOREST;
+
+VAR L : INTEGER;
+
+BEGIN
+
+   AXIS_LINES (L);
+   IF L = 0
+      THEN L := 7
+      ELSE L := L+6;
+   GOTOXY (1,L);
+
+END;
+
+(* 'TITLE' displays the title header for ANIMAL. *)
+
+PROCEDURE TITLE;
+
+BEGIN
+
+CLRSCRN;
+
+WRITELN;
+WRITELN('                                  ANIMAL');
+WRITELN;
+WRITELN('                      ANIMATION APPLICATIONS LANGUAGE');
+WRITELN('                          FOR ANIMATIONSAKADEMIEN');
+WRITELN;
+
+END;
+
+

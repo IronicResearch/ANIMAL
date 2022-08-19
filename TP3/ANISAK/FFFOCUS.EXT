@@ -1,0 +1,410 @@
+
+PROCEDURE FOLLOW_FOCUS_ADJUSTMENT;
+
+(* PHANTOM FOLLOW FOCUS is the program for coordinating a lens assembly F-axis
+(* to a non-existant focussing distance Z-axis for follow focus control. *)
+
+(* This program is based upon the Gaussian Lens Equation (for ideal lenses):
+(*      1/O + 1/I = 1/F
+(*      O = object distance from object to lens
+(*      I = image distance from lens to image
+(*      F = focal length of lens
+(* This relation becomes exact for real lenses when using the principal planes
+(* technique. (The principal planes happen to be located where the relation
+(* is meant to hold true.) *)
+
+(* When a reference image is created, all subsequent focussing is computed
+(* relative to this reference image. Therefore many physical parameters,
+(* including the locations of the pricipal planes themselves, drop out
+(* of the computations. *)
+
+VAR CH : CHAR;
+    ANSWER : CHAR;
+    QUIT_FOCUS : BOOLEAN;
+
+    FF_SCALE : REAL;
+
+    ZM : AXIS;
+    FM : AXIS;
+
+    ZC : COUNT_TABLE;
+    FC : COUNT_TABLE;
+
+    ZN : CHAR;
+    FN : CHAR;
+
+(* FOLLOW FOCUS INSTALLATION is the actual menu-driven installation procedure
+(* which is isolated from the main program due to many duplicate labels. *)
+
+PROCEDURE FOLLOW_FOCUS_INSTALLATION;
+
+VAR FF : REAL;                    (* focal length *)
+
+    O_REF : REAL;                 (* object reference position *)
+    I_REF : REAL;                 (* image reference position *)
+    M_REF : REAL;                 (* magnification reference ratio *)
+    Z_REF : REAL;                 (* Z axis reference focussing distance *)
+    F_REF : REAL;                 (* F axis reference lens distance *)
+
+    O : REAL;                     (* object distance *)
+    I : REAL;                     (* image distance *)
+    M : REAL;                     (* magnification *)
+    Z : REAL;                     (* Z axis focussing distance *)
+    F : REAL;                     (* F axis lens distance *)
+
+    d_O : REAL;                   (* delta object distance *)
+    d_I : REAL;                   (* delta image distance *)
+    d_Z : REAL;                   (* delta Z axis distance *)
+    d_F : REAL;                   (* delta F axis distance *)
+
+    K_Z : REAL;                  (* Z axis units --> steps conversion *)
+    K_F : REAL;                  (* F axis units --> steps conversion *)
+
+    Z_COMPUTE : REAL;
+    F_COMPUTE : REAL;
+    Z_ADJUST : REAL;
+    F_ADJUST : REAL;
+    dd_Z : REAL;
+    dd_F : REAL;
+
+(* This section initializes the follow focus reference parameters. *)
+
+PROCEDURE REFERENCE_FOLLOW_FOCUS_PARAMETERS;
+
+BEGIN
+
+   F_REF := 0.0;
+
+   I_REF := (Z_REF - SQRT (SQR (Z_REF) - 4 * Z_REF * FF)) / 2;
+
+   O_REF := (FF * I_REF) / (I_REF - FF);
+
+   M_REF := -1.0 * I_REF / O_REF;
+
+   WRITELN ('Reference object distance = ', O_REF:8:3, ' mm');
+   WRITELN ('Reference image distance  = ', I_REF:8:3, ' mm');
+   WRITELN ('Reference magnification   = ', M_REF:8:3);
+   WRITELN;
+
+END;
+
+(* This section computes the Z and F axes into follow-focus positions according
+(* to the operator's input focussing specifications. *)
+
+PROCEDURE COMPUTE_FOLLOW_FOCUS_POSITIONS;
+
+BEGIN
+
+   IF Z < 4 * FF
+      THEN I := 2 * FF
+      ELSE I := (Z - SQRT (SQR (Z) - 4 * Z * FF)) / 2;
+
+   O := (FF * I) / (I - FF);
+
+   d_O := O - O_REF;
+   d_I := I - I_REF;
+
+   d_Z := Z - Z_REF;
+   d_F := -1.0 * K_F * (d_I);
+
+END;
+
+(* This section moves the F axis into its zero position for
+(* giving an in-focus reference size image. *)
+
+PROCEDURE ZERO_FOCUS_POSITIONS;
+
+BEGIN
+
+WRITELN ('Locating previous 0 positions for Z and F axes');
+WRITELN;
+
+GETCOUNT (ZC);
+GETCOUNT (FC);
+
+ZM.STEPCNT := -1 * ZC.COUNT;
+FM.STEPCNT := -1 * FC.COUNT;
+
+PREPM (ZM);
+PREPM (FM);
+
+RUNM (ZM);
+RUNM (FM);
+WAITOVER;
+
+WRITELN ('Move Z and F axes into reference position');
+WRITELN;
+WRITELN ('Use Up and Down arrow keys for Z axis');
+WRITELN ('Use Left and Right arrow keys for F axis');
+WRITELN;
+WRITELN ('Press RETURN when through focussing');
+WRITELN;
+
+OVERUN (FN, ZN);
+
+WRITELN;
+WRITELN;
+
+ZEROM (FM);
+ZEROM (ZM);
+
+WRITELN ('Z and F axes are now zeroed for reference artwork');
+WRITELN;
+
+END;
+
+(* This section moves the Z and F axes into follow-focus positions according
+(* to the operator's input focussing specifications. After the computed
+(* positions are generated, the operator may overide the axes to compensate
+(* for out-of-focus conditions based on the mechanical slop in the system. *)
+
+PROCEDURE GOTO_FOCUS_POSITIONS;
+
+BEGIN
+
+   WRITE ('Focussing Distance = ');
+   RDLNREAL (Z);
+   WRITELN;
+
+   COMPUTE_FOLLOW_FOCUS_POSITIONS;
+
+   WRITELN ('Object distance = ', O:15:3, ' mm');
+   WRITELN ('Image distance =  ', I:15:3, ' mm');
+   WRITELN ('delta Z-axis =    ', d_Z:15:3, ' steps');
+   WRITELN ('delta F-axis =    ', d_F:15:3, ' steps');
+   WRITELN;
+
+   GETCOUNT (ZC);
+   GETCOUNT (FC);
+
+   ZM.STEPCNT := ((d_Z) - ZC.COUNT + Z_ADJUST);
+   FM.STEPCNT := ((d_F) - FC.COUNT + F_ADJUST);
+
+   WRITELN ('Z position = ', ZC.COUNT:10:3, '   Z + step count = ', ZM.STEPCNT:10:3);
+   WRITELN ('F position = ', FC.COUNT:10:3, '   F + step count = ', FM.STEPCNT:10:3);
+   WRITELN;
+
+   IF ZM.STEPCNT >= 0
+      THEN ZM.DIR := FWD
+      ELSE ZM.DIR := REV;
+   ZM.STEPCNT := ABS (ZM.STEPCNT);
+
+   IF FM.STEPCNT >= 0
+      THEN FM.DIR := FWD
+      ELSE FM.DIR := REV;
+   FM.STEPCNT := ABS (FM.STEPCNT);
+
+   WRITELN ('Running Z and F axes into position...');
+   RUNM (ZM);
+   RUNM (FM);
+   WAITOVER;
+
+   WRITELN ('Z and F axes are at computed positions');
+   WRITELN;
+
+   WRITE ('Is artwork in focus? (Y/N) ');
+   RDCON (ANSWER);
+   WRITELN;
+   WRITELN;
+
+   IF ANSWER <> 'N'
+      THEN BEGIN
+           dd_Z := 0;
+           dd_F := 0;
+           END
+
+      ELSE BEGIN
+           GETCOUNT (ZC);
+           GETCOUNT (FC);
+           Z_COMPUTE := ZC.COUNT;
+           F_COMPUTE := FC.COUNT;
+
+           WRITELN ('Then proceed to move axes into focus');
+           WRITELN;
+           WRITELN ('Use Up and Down arrow keys for Z axis');
+           WRITELN ('Use Left and Right arrow keys for F axis');
+           WRITELN;
+           WRITELN ('Press RETURN when through focussing');
+           WRITELN;
+           OVERUN (FN, ZN);
+           WRITELN;
+           WRITELN;
+           GETCOUNT (ZC);
+           GETCOUNT (FC);
+           dd_Z := ZC.COUNT - Z_COMPUTE;
+           dd_F := FC.COUNT - F_COMPUTE;
+           END;
+
+   Z_ADJUST := Z_ADJUST + dd_Z;
+   F_ADJUST := F_ADJUST + dd_F;
+
+   WRITELN ('Z Axis Error = ', dd_Z:10:3, '   --> Total Z Error = ', Z_ADJUST:10:3);
+   WRITELN ('F Axis Error = ', dd_F:10:3, '   --> Total F Error = ', F_ADJUST:10:3);
+   WRITELN;
+
+END;
+
+(* FOLLOW FOCUS MENU displays the menu including current follow focus data. *)
+
+PROCEDURE FOLLOW_FOCUS_MENU;
+
+VAR LINK_STAT : STRING [10];
+
+BEGIN
+
+   IF FOLLOW_FOCUS
+      THEN LINK_STAT := 'ON'
+      ELSE LINK_STAT := 'OFF';
+
+   WRITELN ('ANIMAL Follow Focus Features:');
+   WRITELN;
+   WRITELN ('   L : Link Follow Focus On/Off         |', LINK_STAT:10);
+   WRITELN ('   F : Focal Length of Lens             |', FF:10:1);
+   WRITELN ('   C : Conversion Units for Lens Axis   |', K_F:10:1);
+   WRITELN ('   R : Reference Focussing Distance     |', Z_REF:10:1);
+   WRITELN ('   Z : Zero Follow Focus Positions');
+   WRITELN ('   G : Goto Follow Focus Positions');
+   WRITELN ('   O : Overide MCPU selections');
+   WRITELN ('   Q : Quit Follow Focus Installation');
+   WRITELN;
+
+END;
+
+(* FOLLOW FOCUS INSTALLATION is the isolated installation procedure. *)
+
+BEGIN     (* procedure FOLLOW FOCUS INSTALLATION *)
+
+FF := FOCAL_LENGTH;
+Z_REF := FOCUS_REF;
+I_REF := ZERO_FOCUS;
+K_F := FF_SCALE;
+
+Z_ADJUST := 0;
+F_ADJUST := 0;
+
+CLRSCRN;
+FOLLOW_FOCUS_MENU;
+
+QUIT_FOCUS := FALSE;
+REPEAT
+
+   RDKEY (CH);
+   CASE CH OF
+
+        'L' : BEGIN
+              WRITE ('Link On? (Y/N) ');
+              RDCON (ANSWER);
+              WRITELN;
+              CASE ANSWER OF
+                   'L' : FOLLOW_FOCUS := NOT FOLLOW_FOCUS;
+                   'Y' : FOLLOW_FOCUS := TRUE;
+                   'N' : FOLLOW_FOCUS := FALSE;
+                   CR  : FOLLOW_FOCUS := TRUE;
+                   END;
+              END;
+
+        'F' : BEGIN
+              WRITE ('Focal Length = ');
+              RDLNREAL (FF);
+              WRITELN;
+              REFERENCE_FOLLOW_FOCUS_PARAMETERS;
+              END;
+
+        'C' : BEGIN
+              WRITE ('Conversion Units = ');
+              RDLNREAL (K_F);
+              WRITELN;
+              REFERENCE_FOLLOW_FOCUS_PARAMETERS;
+              END;
+
+        'R' : BEGIN
+              WRITE ('Reference Position = ');
+              RDLNREAL (Z_REF);
+              WRITELN;
+              REFERENCE_FOLLOW_FOCUS_PARAMETERS;
+              END;
+
+        'Z' : BEGIN
+              WRITELN ('Zero Focus Positions...');
+              WRITELN;
+              ZERO_FOCUS_POSITIONS;
+              END;
+
+        'G' : BEGIN
+              WRITELN ('Goto Focus Positions...');
+              WRITELN;
+              GOTO_FOCUS_POSITIONS;
+              END;
+
+        'O' : BEGIN
+              WRITELN ('Overide...');
+              WRITELN;
+              OVERIDE;
+              END;
+
+        'H' : BEGIN
+              WRITELN ('Help...');
+              WRITELN;
+              FOLLOW_FOCUS_MENU;
+              END;
+
+        '?' : BEGIN
+              WRITELN ('? --- Help...');
+              WRITELN;
+              FOLLOW_FOCUS_MENU;
+              END;
+
+        CR  : BEGIN
+              CLRSCRN;
+              FOLLOW_FOCUS_MENU;
+              END;
+
+        'Q' : BEGIN
+              WRITE ('Quit Follow Focus procedure? (Y/N) ');
+              RDCON (ANSWER);
+              WRITELN;
+              QUIT_FOCUS := (ANSWER = 'Y');
+              END;
+
+        ELSE  WRITELN;
+        END;
+
+UNTIL QUIT_FOCUS;
+
+FOCAL_LENGTH := FF;
+FOCUS_REF := Z_REF;
+ZERO_FOCUS := I_REF;
+FF_SCALE := K_F;
+
+END;      (* procedure FOLLOW FOCUS INSTALLATION *)
+
+BEGIN     (* procedure FOLLOW FOCUS ADJUSTMENT *)
+
+FN := CHR (FF.M.MOTORNO);
+ZN := CHR (XG.M.MOTORNO);
+
+FM := FF.M;
+ZM := XG.M;
+
+FC := FF.C;
+ZC := XG.C;
+
+   FF_SCALE := FF.K.KSCALE;
+
+   FOLLOW_FOCUS_INSTALLATION;
+
+   IF FOLLOW_FOCUS
+      THEN BEGIN
+           FF.K.KSCALE := FF_SCALE;
+           FF.K.UNITS := 'Focus Distance';
+           END
+
+      ELSE BEGIN
+           FF.K.KSCALE := 1.0;
+           FF.K.UNITS := 'Steps';
+           END;
+
+END;     (* procedure FOLLOW FOCUS ADJUSTMENT *)
+
+
+

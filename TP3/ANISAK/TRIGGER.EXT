@@ -1,0 +1,235 @@
+
+(* Triggers... *)
+
+(* SPECIFY TRIGGERS sets up the trigger sequencing. *)
+
+PROCEDURE TRIGGER_HAPPY;
+
+VAR SELECTION : CHAR;
+    PHASE : INTEGER;
+    QUIT_TRIGGERS : BOOLEAN;
+
+(* INITIALIZE TRIGGER resets all triggers to 0. *)
+
+PROCEDURE INIT_TRIGGER (VAR T : TRIGGER_TABLE);
+
+BEGIN
+
+   T.SPEC := FALSE;
+   T.MASK := $00;
+   T.TRIG := $00;
+   T.NULL := $00;
+   T.TIME := 0;
+   T.NULL := 0;
+
+END;
+
+PROCEDURE ENABLE_TRIGGER;
+
+VAR ANSWER : CHAR;
+    PHASE : INTEGER;
+
+BEGIN
+
+   WRITE ('Enable Trigger Phase # ');
+   RDCON (ANSWER);
+   PHASE := ORD (ANSWER) - ORD ('0');
+   IF PHASE IN [1..4]
+      THEN TRIGGER [PHASE].SPEC := TRUE;
+
+END;
+
+PROCEDURE DISABLE_TRIGGER;
+
+VAR ANSWER : CHAR;
+    PHASE : INTEGER;
+
+BEGIN
+
+   WRITE ('Disable Trigger Phase # ');
+   RDCON (ANSWER);
+   PHASE := ORD (ANSWER) - ORD ('0');
+   IF PHASE IN [1..4]
+      THEN TRIGGER [PHASE].SPEC := FALSE;
+
+END;
+
+(* DEFINE TRIGGER sets up the trigger definition and timing. *)
+
+PROCEDURE DEFINE_TRIGGER (VAR T : TRIGGER_TABLE);
+
+VAR BIT : INTEGER;
+    MASK : BYTE_CHAR;
+    TIME : REAL;
+    WAIT : REAL;
+    STATE : INTEGER;
+    ANSWER : CHAR;
+    N : INTEGER;
+
+BEGIN
+
+   T.SPEC := TRUE;
+
+   WRITE ('Trigger Line # ');
+   RDLNINT (BIT);
+   WRITELN;
+   CASE BIT OF
+        1 : MASK := $01;
+        2 : MASK := $02;
+        3 : MASK := $04;
+        4 : MASK := $08;
+        5 : MASK := $10;
+        6 : MASK := $20;
+        7 : MASK := $40;
+        8 : MASK := $80;
+        ELSE MASK := $00;
+        END;
+   T.MASK := MASK OR T.MASK;
+   FOR N := 1 TO 4 DO
+       TRIGGER [N].MASK := T.MASK OR TRIGGER [N].MASK;
+
+   WRITE ('Active  State? (0/1) ');
+   RDLNINT (STATE);
+   IF STATE = 1
+      THEN T.TRIG := (NOT MASK AND T.TRIG) OR (MASK AND $FF)
+      ELSE T.TRIG := (NOT MASK AND T.TRIG) OR (MASK AND $00);
+
+   WRITE ('Passive State? (0/1) ');
+   RDLNINT (STATE);
+   IF STATE = 1
+      THEN T.NULL := (NOT MASK AND T.NULL) OR (MASK AND $FF)
+      ELSE T.NULL := (NOT MASK AND T.NULL) OR (MASK AND $00);
+
+   TIME := T.TIME / 1000.0;
+   WRITE ('Trigger Time = ');
+   RDLNREAL (TIME);
+   T.TIME := ROUND (TIME * 1000);
+
+   WAIT := T.WAIT / 1000.0;
+   WRITE ('Delay   Time = ');
+   RDLNREAL (WAIT);
+   T.WAIT := ROUND (WAIT * 1000);
+   WRITELN;
+
+END;
+
+PROCEDURE MODIFY_TRIGGER;
+
+VAR ANSWER : CHAR;
+    PHASE : INTEGER;
+
+BEGIN
+
+   WRITE ('Program Trigger Phase # ');
+   RDCON (ANSWER);
+   WRITELN;
+   WRITELN;
+   PHASE := ORD (ANSWER) - ORD ('0');
+   IF PHASE IN [1..4]
+      THEN DEFINE_TRIGGER (TRIGGER [PHASE]);
+
+END;
+
+PROCEDURE TRIGGER_STATUS;
+
+VAR N : INTEGER;
+    B : INTEGER;
+    MASK : BYTE_CHAR;
+    T : TRIGGER_TABLE;
+
+BEGIN
+
+   WRITELN ('Trigger Phase:      ', '  ':10,  ' 1 2 3 4 5 6 7 8', 'Time Duration':20);
+   WRITELN;
+
+   FOR N := 1 TO 4 DO
+       BEGIN
+       T := TRIGGER [N];
+       WRITE ('Phase ', N:1);
+       IF T.SPEC
+          THEN WRITE ('Leading':13)
+          ELSE WRITE ('Off':13);
+       WRITE ('  ':10);
+       MASK := $01;
+       FOR B := 1 TO 8 DO
+           IF T.SPEC
+              THEN BEGIN
+                   IF MASK AND T.MASK = 0
+                      THEN WRITE (' -')
+                   ELSE IF MASK AND T.TRIG <> 0
+                      THEN WRITE (' 1')
+                      ELSE WRITE (' 0');
+                   MASK := MASK SHL 1;
+                   END
+              ELSE WRITE (' -');
+       IF T.SPEC
+          THEN WRITE ((T.TIME / 1000.0):20:3);
+       WRITELN;
+
+       WRITE ('Phase ', N:1);
+       IF T.SPEC
+          THEN WRITE ('Trailing':13)
+          ELSE WRITE ('Off':13);
+       WRITE ('  ':10);
+       MASK := $01;
+       FOR B := 1 TO 8 DO
+           IF T.SPEC
+              THEN BEGIN
+                   IF MASK AND T.MASK = 0
+                      THEN WRITE (' -')
+                   ELSE IF MASK AND T.NULL <> 0
+                      THEN WRITE (' 1')
+                      ELSE WRITE (' 0');
+                   MASK := MASK SHL 1;
+                   END
+              ELSE WRITE (' -');
+       IF T.SPEC
+          THEN WRITE ((T.WAIT / 1000.0):20:3);
+       WRITELN;
+       WRITELN;
+       END;
+
+END;
+
+PROCEDURE TRIGGER_MENU;
+
+BEGIN
+
+   WRITELN ('Trigger Selections:                   |   Trigger Phases of Operation:');
+   WRITELN;
+   WRITELN ('   P : Program Trigger Phase          |   Phase 1 = Pre-Exposure');
+   WRITELN ('   E : Enable Trigger Phase           |   Phase 2 = Sync-Exposure');
+   WRITELN ('   D : Disable Trigger Phase          |   Phase 3 = Exposure/Increment');
+   WRITELN ('   Q : Quit Trigger Selections        |   Phase 4 = Post-Increment');
+   WRITELN;
+
+END;
+
+BEGIN
+
+   QUIT_TRIGGERS := FALSE;
+   REPEAT
+
+      CLRSCRN;
+      TRIGGER_STATUS;
+      TRIGGER_MENU;
+
+      RDKEY (SELECTION);
+
+      CASE SELECTION OF
+           'P' : MODIFY_TRIGGER;
+           'E' : ENABLE_TRIGGER;
+           'D' : DISABLE_TRIGGER;
+           'Q' : QUIT_TRIGGERS := TRUE;
+           CR  : QUIT_TRIGGERS := TRUE;
+           ELSE  WRITELN (SELECTION);
+           END;
+
+   UNTIL QUIT_TRIGGERS;
+
+   WRITELN ('Quit Triggers');
+   WRITELN;
+
+END;
+
+
