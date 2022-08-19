@@ -1,0 +1,161 @@
+
+(* OVERUN is the CRT terminal's arrow key overide program
+(* for controlling a specified pair of MCPU motor axes. *)
+
+(* Uses Turbo Pascal code instead of machine code. *)
+(* (and uses it just like BASIC code) *)
+
+(* Stop / Go operation via toggling key strokes:
+(* 1st stroke --> Go
+(* 2nd stroke --> Stop *)
+
+(* Alternative Increment operation uses single key strokes per move. *)
+
+PROCEDURE OVERUN (VAR XAXISNO, YAXISNO : CHAR);
+
+LABEL START, EXIT, INCR;
+
+CONST CR = #$0D;
+      UP = #$38;
+      DN = #$32;
+      LT = #$34;
+      RT = #$36;
+
+TYPE REGISTER_SET = RECORD
+        AX,BX,CX,DX,BP,SI,DI,DS,ES,FLAGS : INTEGER;
+        END;
+
+VAR KEY : CHAR;
+    PRESS : BOOLEAN;
+    ARROW : BOOLEAN;
+    XINCR : REAL;
+    YINCR : REAL;
+    A : AXIS;
+
+PROCEDURE RDKEYST (VAR KEYSTAT : BOOLEAN);
+
+VAR REG : REGISTER_SET;
+
+BEGIN
+
+   REG.AX := $0B * 256;             (* AH <-- Read-Keyboard-Status fn *)
+   MSDOS (REG);
+   IF REG.AX MOD 256 = 0            (* AL <-- keyboard status *)
+      THEN KEYSTAT := FALSE
+      ELSE KEYSTAT := TRUE;
+
+END;
+
+PROCEDURE RDKEY (VAR KEY : CHAR);
+
+VAR REG : REGISTER_SET;
+
+BEGIN
+
+   REG.AX := $07 * 256;             (* AH <-- Read-Keyboard fn *)
+   MSDOS (REG);
+   KEY := CHR (REG.AX MOD 256);     (* AL <-- keyboard character *)
+
+END;
+
+PROCEDURE CLRKEY;
+
+VAR REG : REGISTER_SET;
+
+BEGIN
+
+   REG.AX := $0C * 256 + $06;       (* AH <-- Clear-Keyboard fn *)
+   REG.DX := $FF;
+   MSDOS (REG);                     (* AL <-- Read-Immediate fn *)
+
+END;
+
+PROCEDURE MAP_AXIS_DIR;
+
+BEGIN
+
+   CASE KEY OF
+
+        UP : BEGIN
+             A.MOTORNO := ORD (YAXISNO);
+             A.DIR := FWD;
+             A.STEPCNT := YINCR;
+             ARROW := TRUE;
+             END;
+
+        DN : BEGIN
+             A.MOTORNO := ORD (YAXISNO);
+             A.DIR := REV;
+             A.STEPCNT := YINCR;
+             ARROW := TRUE;
+             END;
+
+        LT : BEGIN
+             A.MOTORNO := ORD (XAXISNO);
+             A.DIR := REV;
+             A.STEPCNT := XINCR;
+             ARROW := TRUE;
+             END;
+
+        RT : BEGIN
+             A.MOTORNO := ORD (XAXISNO);
+             A.DIR := FWD;
+             A.STEPCNT := XINCR;
+             ARROW := TRUE;
+             END;
+
+        ELSE ARROW := FALSE;
+
+        END; (* CASE Arrow Key *)
+
+END;
+
+BEGIN
+
+XINCR := 16000000.0;
+YINCR := 16000000.0;
+
+START: REPEAT
+          RDKEYST (PRESS);
+       UNTIL PRESS;
+
+       RDKEY (KEY);
+       IF KEY = CR
+          THEN GOTO EXIT;
+       IF KEY = 'I'
+          THEN GOTO INCR;
+       MAP_AXIS_DIR;
+       IF ARROW
+          THEN RUNM (A)
+          ELSE GOTO START;
+
+       REPEAT
+          RDKEYST (PRESS);
+       UNTIL PRESS;
+
+       STOPM (A);
+
+       RDKEY (KEY);
+       IF KEY = CR
+          THEN GOTO EXIT
+          ELSE GOTO START;
+
+INCR:  WRITELN;
+       WRITE ('Increment per Left/Right Arrow Key = ');
+       RDLNREAL (XINCR);
+       WRITE ('Increment per   Up/Down  Arrow Key = ');
+       RDLNREAL (YINCR);
+       WRITELN;
+
+       REPEAT
+          RDKEY (KEY);
+          MAP_AXIS_DIR;
+          IF ARROW
+             THEN RUNM (A);
+       UNTIL KEY = CR;
+       GOTO EXIT;
+
+EXIT:  WRITELN ('Arrow Key Overide Completed');
+
+END;
+

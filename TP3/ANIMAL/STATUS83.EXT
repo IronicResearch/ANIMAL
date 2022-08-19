@@ -1,0 +1,150 @@
+
+(* AXIS LINES counts the number of specified ANIMAL axes.*)
+
+PROCEDURE AXIS_LINES;
+
+(* MULTI LINE counts either single or multiple moves per axis. *)
+
+PROCEDURE MULTI_LINE (VAR A : AXIS_TABLE);
+
+VAR I : INTEGER;
+
+BEGIN
+
+   IF NOT A.P.MULTI
+      THEN S := SUCC (S)
+      ELSE FOR I := 1 TO A.P.TOTAL DO
+               S := SUCC (S);
+
+END;
+
+BEGIN
+
+   S := 0;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN MULTI_LINE (AA [I]);
+
+END;
+
+(* STAT displays the status for an individual Axis. *)
+
+PROCEDURE STAT (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   WRITE (A.ID, ':');
+   WRITE (A.P.START_FRAME:9, A.P.END_FRAME:9);
+   WRITE (A.P.START_PT:10:1, A.K.CUR_POSN:10:1, A.P.END_PT:10:1);
+
+   IF STOPMOTION
+      THEN BEGIN
+           WRITE (A.P.MOVETYPE:7);
+           WRITE (A.P.ACCEL:7:0, A.P.KONST:7:0, A.P.DECEL:7:0);
+           END;
+
+   IF GOMOTION
+      THEN IF A.P.STREAK
+              THEN BEGIN
+                   WRITE ('YES':7);
+                   WRITE (A.P.INITL_SIZE:8:0, A.P.FINAL_SIZE:8:0);
+                   END
+              ELSE WRITE ('NO':7);
+
+   WRITELN;
+
+END;
+
+(* MULTI STAT displays an axis sequence either as a single move,
+(* or as a multiple-segment move. *)
+
+PROCEDURE MULTI_STAT (VAR A : AXIS_TABLE);
+
+VAR I : INTEGER;
+    P : PARAMETER_TABLE;
+
+BEGIN
+
+   IF NOT A.P.MULTI
+      THEN STAT (A)
+      ELSE BEGIN
+           P := A.P;
+           FOR I := 1 TO A.P.TOTAL DO
+               BEGIN
+               A.P := A.I [I];
+               STAT (A);
+               END;
+           A.P := P;
+           END;
+
+END;
+
+(* STATUS displays the currently active parameters of the system
+(* for the given scene. It includes the current positions of
+(* each axis' motor in user notation, such as field position,
+(* field size, inches, millimeters, degrees, steps, etc. *)
+
+PROCEDURE STATUS;
+
+VAR ANY_SPEC : BOOLEAN;
+
+BEGIN
+
+   WRITE ('FRAME COUNT = ', FRAME_COUNT:4);
+   WRITE ('  ':8);
+   WRITE ('TOTAL COUNT = ', TOTAL_COUNT:4);
+   WRITE ('  ':8);
+
+   IF FADE
+      THEN BEGIN
+           WRITE ('FADE ');
+           IF FADEIN
+              THEN WRITE ('IN ')
+              ELSE WRITE ('OUT ');
+           IF FADELOG
+              THEN WRITE ('LOG: ')
+              ELSE WRITE ('LIN: ');
+           IF FADE_EXP
+              THEN WRITE (EXPOSURE_TIME:6:2, ' sec');
+           IF FADE_SHTR
+              THEN WRITE (SHUTTER_ANGLE:5:1, ' deg');
+           END
+
+      ELSE IF ROTOSCOPING
+           THEN WRITE ('SHUTTER OPEN')
+
+      ELSE WRITE ('EXPOSURE TIME = ', EXPOSURE_TIME:6:2, ' sec');
+   WRITELN;
+   WRITELN;
+
+   WRITE ('AX:');
+   WRITE ('STR-FR':9, 'END-FR':9);
+   WRITE ('STR-PT':10, 'CUR-PT':10, 'END-PT':10);
+   IF STOPMOTION
+      THEN BEGIN
+           WRITE ('TYPE':7);
+           WRITE ('ACCL':7, 'CONS':7, 'DECL':7);
+           END;
+
+   IF GOMOTION
+      THEN BEGIN
+           WRITE ('STRK':7);
+           WRITE ('INITL':8, 'FINAL':8);
+           END;
+   WRITELN;
+   WRITELN;
+
+   ANY_AXIS (ANY_SPEC);
+   IF NOT ANY_SPEC
+      THEN WRITELN ('          ***** No ANIMAL Axes have been specified yet *****')
+      ELSE BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               IF AA [I].SPEC
+                  THEN MULTI_STAT (AA [I]);
+           END;
+   WRITELN;
+
+END;
+
+

@@ -1,0 +1,113 @@
+
+(* PUT_AXIS_ARRAY puts individual axis data into the master axis array. *)
+
+PROCEDURE PUT_AXIS_ARRAY;
+
+BEGIN
+
+   AA [ 1] := PN;
+   AA [ 2] := TL;
+   AA [ 3] := BM;
+   AA [ 4] := HT;
+   AA [ 5] := TR;
+   AA [ 6] := RT;
+   AA [ 7] := LP;
+   AA [ 8] := GR;
+   AA [ 9] := RL;
+   AA [10] := LV;
+   AA [11] := FF;
+   AA [12] := ZM;
+   AA [13] := XA;
+   AA [14] := XB;
+   AA [15] := XC;
+   AA [16] := XD;
+   AA [17] := XE;
+   AA [18] := XF;
+   AA [19] := XG;
+
+END;
+
+(* GET AXIS ARRAY gets individual axis data out of the master axis array.*)
+
+PROCEDURE GET_AXIS_ARRAY;
+
+BEGIN
+
+   PN := AA [ 1];
+   TL := AA [ 2];
+   BM := AA [ 3];
+   HT := AA [ 4];
+   TR := AA [ 5];
+   RT := AA [ 6];
+   LP := AA [ 7];
+   GR := AA [ 8];
+   RL := AA [ 9];
+   LV := AA [10];
+   FF := AA [11];
+   ZM := AA [12];
+   XA := AA [13];
+   XB := AA [14];
+   XC := AA [15];
+   XD := AA [16];
+   XE := AA [17];
+   XF := AA [18];
+   XG := AA [19];
+
+END;
+
+(* ANY AXIS determines if any of the ANIMAL axes is specified to run. *)
+
+PROCEDURE ANY_AXIS (VAR SPEC : BOOLEAN);
+
+BEGIN
+
+   SPEC := FALSE;
+
+   FOR I := 1 TO MAX_AXES DO
+       SPEC := SPEC OR AA [I].SPEC;
+
+END;
+
+(* ALL AXES determines if all of the ANIMAL axes are specified to run. *)
+
+PROCEDURE ALL_AXES (VAR SPEC : BOOLEAN);
+
+BEGIN
+
+   SPEC := TRUE;
+
+   FOR I := 1 TO MAX_AXES DO
+       SPEC := SPEC AND AA [I].SPEC;
+
+END;
+
+(* CASE AXIS matches a 2-letter axis identfier with its corresponding axis.*)
+
+PROCEDURE CASE_AXIS (VAR ID : CHAR2; VAR OK : BOOLEAN; VAR A : AXIS_TABLE);
+
+BEGIN
+
+   OK := FALSE;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF ID = AA [I].ID
+          THEN BEGIN
+               A := AA [I];
+               OK := TRUE;
+               END;
+
+END;
+
+(* SWAP AXIS BACK swaps back the actual axis matched in CASE AXIS above.*)
+
+PROCEDURE SWAP_AXIS_BACK (VAR ID : CHAR2; VAR A : AXIS_TABLE);
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF ID = AA [I].ID
+          THEN AA [I] := A;
+
+END;
+
+

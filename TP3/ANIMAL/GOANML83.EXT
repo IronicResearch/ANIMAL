@@ -1,0 +1,2379 @@
+
+(* GO ANIMAL contains the main programmed options for running
+(* stop motion, go motion, and live action animation sequences. *)
+
+(* 08-25-86 *)
+
+(* OVERLAY *) PROCEDURE GO_ANIMAL;
+
+(* PRE-COMPUTE pre-computes the initial incremental step count
+(* for the first frame of a Stop Motion sequence. *)
+
+PROCEDURE PRE_COMPUTE (VAR A : AXIS_TABLE);
+
+VAR AXIS_INCR : INTEGER;
+    AXIS_FRAME : INTEGER;
+    AREA : REAL;
+    AREA_ACCEL : REAL;
+    AREA_KONST : REAL;
+    AREA_DECEL : REAL;
+    AREA_TOTAL : REAL;
+    N : INTEGER;
+
+BEGIN
+
+   AXIS_FRAME := A.P.END_FRAME - A.P.START_FRAME;
+   AXIS_INCR := AXIS_FRAME DIV FRAME_STEP;
+   IF AXIS_INCR =  0
+      THEN A.P.INCR_PT := 0.0
+      ELSE A.P.INCR_PT := (A.P.END_PT - A.P.START_PT) / (AXIS_INCR);
+   CONVERT (A.P.INCR_PT, A.K.KSCALE, A.X.INCR_STP);
+
+   IF A.P.TAPER
+      THEN BEGIN
+           A.X.FRAME_COUNT := A.P.END_FRAME - A.P.START_FRAME;
+           A.X.ACCEL_FRAME := ROUND (A.P.ACCEL * A.X.FRAME_COUNT / 100);
+           A.X.DECEL_FRAME := ROUND (A.P.DECEL * A.X.FRAME_COUNT / 100);
+           A.X.KONST_FRAME := A.X.FRAME_COUNT - (A.X.ACCEL_FRAME + A.X.DECEL_FRAME);
+
+           AREA_ACCEL := 0.0;
+           IF A.X.ACCEL_FRAME > 0
+              THEN FOR N := 1 TO A.X.ACCEL_FRAME DO
+                   IF A.P.MOVETYPE = 'SIN'
+                      THEN AREA_ACCEL := AREA_ACCEL + SIN (PI/2 * N / A.X.ACCEL_FRAME)
+                      ELSE AREA_ACCEL := AREA_ACCEL + N / A.X.ACCEL_FRAME;
+           AREA_DECEL := 0.0;
+           IF A.X.DECEL_FRAME > 0
+              THEN FOR N := 1 TO A.X.DECEL_FRAME DO
+                   IF A.P.MOVETYPE = 'SIN'
+                      THEN AREA_DECEL := AREA_DECEL + SIN (PI/2 * N / A.X.DECEL_FRAME)
+                      ELSE AREA_DECEL := AREA_DECEL + N / A.X.DECEL_FRAME;
+           AREA_KONST := A.X.KONST_FRAME;
+           AREA_TOTAL := AREA_ACCEL + AREA_KONST + AREA_DECEL;
+
+           A.X.INCR_MAX := (A.P.END_PT - A.P.START_PT) / AREA_TOTAL;
+
+           IF A.X.ACCEL_FRAME = 0
+              THEN A.P.INCR_PT := A.X.INCR_MAX
+              ELSE IF A.P.MOVETYPE = 'SIN'
+                   THEN A.P.INCR_PT := SIN (PI/2 * (1 / A.X.ACCEL_FRAME)) * A.X.INCR_MAX
+                   ELSE A.P.INCR_PT := (1 / A.X.ACCEL_FRAME) * A.X.INCR_MAX;
+           CONVERT (A.P.INCR_PT, A.K.KSCALE, A.X.INCR_STP);
+           END;
+
+   A.M.STEPCNT := A.X.INCR_STP;
+   PREPM (A.M);
+
+   A.P.CUR_PT := A.P.START_PT;
+   CONVERT (A.P.CUR_PT, A.K.KSCALE, A.X.CUR_STP);
+
+END;
+
+(* COMPUTE computes the incremental step count for the current frame. *)
+
+PROCEDURE COMPUTE (VAR A : AXIS_TABLE);
+
+VAR INCR_REMAINING : INTEGER;
+    AXIS_FRAME_COUNT : INTEGER;
+
+(* COMPUTE TAPER computes the current tapered increment. *)
+(* Error compensation occurs during each incrementation phase. *)
+(* by way of tedious re-calculation... *)
+
+PROCEDURE COMPUTE_TAPER;
+
+VAR TAPER_COUNT : INTEGER;
+    TAPER_FRAME : INTEGER;
+    EFF_INCR_PT : REAL;
+    EFF_END_PT : REAL;
+    EFF_INCR_REMAINING : INTEGER;
+    ADJ_AREA : REAL;
+    ADJ_INCR : REAL;
+    ADJ_ACCEL : REAL;
+    ADJ_KONST : REAL;
+    ADJ_DECEL : REAL;
+    N : INTEGER;
+
+BEGIN
+
+ADJ_ACCEL := 0.0;
+ADJ_KONST := 0.0;
+ADJ_DECEL := 0.0;
+
+IF AXIS_FRAME_COUNT > (A.X.FRAME_COUNT - A.X.ACCEL_FRAME)
+   THEN BEGIN
+        TAPER_COUNT := AXIS_FRAME_COUNT - (A.X.FRAME_COUNT - A.X.ACCEL_FRAME);
+        TAPER_FRAME := A.X.ACCEL_FRAME - TAPER_COUNT + 1;
+
+        IF A.X.DECEL_FRAME > 0
+           THEN FOR N := 1 TO A.X.DECEL_FRAME DO
+                IF A.P.MOVETYPE = 'SIN'
+                   THEN ADJ_DECEL := ADJ_DECEL + SIN (PI/2 * N / A.X.DECEL_FRAME)
+                   ELSE ADJ_DECEL := ADJ_DECEL + N / A.X.DECEL_FRAME;
+
+        ADJ_KONST := A.X.KONST_FRAME;
+
+        IF A.X.ACCEL_FRAME > 0
+           THEN FOR N := TAPER_FRAME TO A.X.ACCEL_FRAME DO
+                IF A.P.MOVETYPE = 'SIN'
+                   THEN ADJ_ACCEL := ADJ_ACCEL + SIN (PI/2 * N / A.X.ACCEL_FRAME)
+                   ELSE ADJ_ACCEL := ADJ_ACCEL + N / A.X.ACCEL_FRAME;
+        END   (* acceleration taper in adjustment *)
+
+ELSE IF AXIS_FRAME_COUNT <= A.X.DECEL_FRAME
+   THEN BEGIN
+        TAPER_FRAME := AXIS_FRAME_COUNT;
+
+        IF A.X.DECEL_FRAME > 0
+           THEN FOR N := 1 TO TAPER_FRAME DO
+                IF A.P.MOVETYPE = 'SIN'
+                   THEN ADJ_DECEL := ADJ_DECEL + SIN (PI/2 * N / A.X.DECEL_FRAME)
+                   ELSE ADJ_DECEL := ADJ_DECEL + N / A.X.DECEL_FRAME;
+        END   (* deceleration taper out adjustment *)
+
+ELSE BEGIN
+     TAPER_COUNT := AXIS_FRAME_COUNT - A.X.DECEL_FRAME;
+
+     IF A.X.DECEL_FRAME > 0
+        THEN FOR N := 1 TO A.X.DECEL_FRAME DO
+             IF A.P.MOVETYPE = 'SIN'
+                THEN ADJ_DECEL := ADJ_DECEL + SIN (PI/2 * N / A.X.DECEL_FRAME)
+                ELSE ADJ_DECEL := ADJ_DECEL + N / A.X.DECEL_FRAME;
+
+     ADJ_KONST := TAPER_COUNT;
+     END;   (* constant increment adjustment *)
+
+ADJ_AREA := ADJ_ACCEL + ADJ_KONST + ADJ_DECEL;
+A.X.INCR_MAX := (A.P.END_PT - A.P.CUR_PT) / ADJ_AREA;
+
+IF AXIS_FRAME_COUNT > (A.X.FRAME_COUNT - A.X.ACCEL_FRAME)
+   THEN BEGIN
+        TAPER_COUNT := AXIS_FRAME_COUNT - (A.X.FRAME_COUNT - A.X.ACCEL_FRAME);
+        TAPER_FRAME := A.X.ACCEL_FRAME - TAPER_COUNT + 1;
+        IF A.X.ACCEL_FRAME = 0
+           THEN A.P.INCR_PT := A.X.INCR_MAX
+           ELSE IF A.P.MOVETYPE = 'SIN'
+                THEN A.P.INCR_PT := SIN (PI/2 * (TAPER_FRAME / A.X.ACCEL_FRAME)) * A.X.INCR_MAX
+                ELSE A.P.INCR_PT := (TAPER_FRAME / A.X.ACCEL_FRAME) * A.X.INCR_MAX;
+        END   (* acceleration taper in *)
+
+ELSE IF AXIS_FRAME_COUNT <= A.X.DECEL_FRAME
+   THEN BEGIN
+        TAPER_FRAME := AXIS_FRAME_COUNT;
+        IF A.X.DECEL_FRAME = 0
+           THEN A.P.INCR_PT := A.X.INCR_MAX
+           ELSE IF A.P.MOVETYPE = 'SIN'
+                THEN A.P.INCR_PT := SIN (PI/2 * (TAPER_FRAME / A.X.DECEL_FRAME)) * A.X.INCR_MAX
+                ELSE A.P.INCR_PT := (TAPER_FRAME / A.X.DECEL_FRAME) * A.X.INCR_MAX;
+        END   (* deceleration taper out *)
+
+ELSE A.P.INCR_PT := A.X.INCR_MAX;    (* constant incrementation *)
+
+END;   (* procedure Compute Taper *)
+
+BEGIN
+
+A.P.CUR_PT := A.K.CUR_POSN;
+
+IF (FRAME_COUNT < A.P.START_FRAME)
+OR (FRAME_COUNT > A.P.END_FRAME)
+   THEN A.P.INCR_PT := 0
+   ELSE BEGIN
+        AXIS_FRAME_COUNT := A.P.END_FRAME - FRAME_COUNT;
+        INCR_REMAINING := AXIS_FRAME_COUNT DIV FRAME_STEP;
+        IF INCR_REMAINING = 0
+           THEN A.P.INCR_PT := 0
+           ELSE IF A.P.TAPER
+                THEN COMPUTE_TAPER
+                ELSE A.P.INCR_PT := (A.P.END_PT - A.P.CUR_PT) / INCR_REMAINING;
+        END;
+
+A.P.CUR_PT := A.P.CUR_PT + A.P.INCR_PT;
+CONVERT (A.P.CUR_PT, A.K.KSCALE, A.X.CUR_STP);
+
+A.M.STEPCNT := A.X.CUR_STP - A.K.CUR_STEP;
+PREPM (A.M);
+
+END;
+
+VAR QUITTING_TIME : BOOLEAN;
+(* PRE-COMPUTE_STREAK pre-computes the first streak step count
+(* for the first frame. *)
+
+PROCEDURE PRE_COMPUTE_STREAK (VAR A : AXIS_TABLE);
+
+VAR AXIS_INCR : INTEGER;
+    AXIS_FRAME : INTEGER;
+
+BEGIN
+
+IF A.P.STREAK
+   THEN BEGIN
+        AXIS_FRAME := A.P.END_FRAME - A.P.START_FRAME;
+        AXIS_INCR := AXIS_FRAME DIV FRAME_STEP;
+        IF AXIS_INCR =  0
+           THEN A.P.DELTA_SIZE := 0.0
+           ELSE A.P.DELTA_SIZE := (A.P.FINAL_SIZE - A.P.INITL_SIZE) / (AXIS_INCR);
+        CONVERT (A.P.DELTA_SIZE, A.K.KSCALE, A.X.DELTA_CNT);
+
+        A.P.CUR_SIZE := A.P.INITL_SIZE;
+        CONVERT (A.P.CUR_SIZE, A.K.KSCALE, A.X.CUR_CNT);
+        END
+
+   ELSE A.X.CUR_CNT := 0;
+
+A.M.STEPCNT := A.X.CUR_CNT;
+PREPM (A.M);
+
+END;
+
+(* COMPUTE_STREAK computes the current streak step count for the current frame. *)
+
+PROCEDURE COMPUTE_STREAK (VAR A : AXIS_TABLE);
+
+VAR INCR_REMAINING : INTEGER;
+    AXIS_FRAME_COUNT : INTEGER;
+
+BEGIN
+
+IF A.P.STREAK
+   THEN BEGIN
+        IF (FRAME_COUNT < A.P.START_FRAME)
+        OR (FRAME_COUNT > A.P.END_FRAME)
+           THEN A.X.CUR_CNT := 0
+
+           ELSE BEGIN
+                AXIS_FRAME_COUNT := A.P.END_FRAME - FRAME_COUNT;
+                INCR_REMAINING := AXIS_FRAME_COUNT DIV FRAME_STEP;
+                IF INCR_REMAINING = 0
+                   THEN BEGIN
+                        A.P.DELTA_SIZE := 0;
+                        A.P.CUR_SIZE := 0;
+                        END
+                   ELSE BEGIN
+                        A.P.DELTA_SIZE := (A.P.FINAL_SIZE - A.P.CUR_SIZE) / INCR_REMAINING;
+                        A.P.CUR_SIZE := A.P.CUR_SIZE + A.P.DELTA_SIZE;
+                        END;
+               CONVERT (A.P.DELTA_SIZE, A.K.KSCALE, A.X.DELTA_CNT);
+               CONVERT (A.P.CUR_SIZE, A.K.KSCALE, A.X.CUR_CNT);
+               END
+        END
+
+   ELSE A.X.CUR_CNT := 0;
+
+A.M.STEPCNT := A.X.CUR_CNT;
+PREPM (A.M);
+
+END;
+
+(* PRE-TRANSFER SEGMENT transfers the first segment of a multi-segment move.*)
+
+PROCEDURE PRE_TRANSFER_SEGMENT (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   IF A.P.MULTI
+      THEN A.P := A.I [1];
+
+END;
+
+(* TRANSFER SEGMENT transfers a multi-segment move for execution. *)
+
+PROCEDURE TRANSFER_SEGMENT (VAR A : AXIS_TABLE);
+
+VAR S : INTEGER;
+
+BEGIN
+
+   IF A.P.MULTI
+      THEN IF FRAME_COUNT >= A.P.END_FRAME
+           THEN BEGIN
+                S := A.P.SEGMENT;
+                IF S < A.P.TOTAL
+                   THEN A.P := A.I [S+1];
+                PRE_COMPUTE (A);
+                END;
+
+END;
+
+(* PRE-COMPUTE EM ALL pre-computes all available ANIMAL MCPU axis increments. *)
+
+PROCEDURE PRE_COMPUTE_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN PRE_COMPUTE (AA [I]);
+
+END;
+
+(* COMPUTE EM ALL computes all available ANIMAL MCPU axis increments. *)
+
+PROCEDURE COMPUTE_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN COMPUTE (AA [I]);
+
+END;
+
+(* PRE-COMPUTE STREAK EM ALL pre-computes all available ANIMAL MCPU axis streaks. *)
+
+PROCEDURE PRE_COMPUTE_STREAK_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN PRE_COMPUTE_STREAK (AA [I]);
+
+END;
+
+(* COMPUTE STREAK EM ALL computes all available ANIMAL MCPU axis streaks. *)
+
+PROCEDURE COMPUTE_STREAK_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN COMPUTE_STREAK (AA [I]);
+
+END;
+
+(* PRE-TRANSFER SEGMENT ALL transfers the first segment moves for all axes. *)
+
+PROCEDURE PRE_TRANSFER_SEGMENT_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.MULTI
+                  THEN PRE_TRANSFER_SEGMENT (AA [I]);
+
+END;
+
+(* TRANSFER SEGMENT ALL transfers any multi-segment moves for all axes. *)
+
+PROCEDURE TRANSFER_SEGMENT_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.MULTI
+                  THEN TRANSFER_SEGMENT (AA [I]);
+
+END;
+
+(* FINAL STREAK pre-computes the final streak size for each axis. *)
+
+PROCEDURE FINAL_STREAK (VAR A : AXIS_TABLE);
+
+BEGIN
+
+IF A.P.STREAK
+   THEN BEGIN
+        CONVERT (A.P.FINAL_SIZE, A.K.KSCALE, A.X.FINAL_CNT);
+        A.M.STEPCNT := ABS (A.X.FINAL_CNT);
+        END
+
+   ELSE A.M.STEPCNT := 0;
+
+END;
+
+(* FINAL STREAK EM ALL computes all available ANIMAL MCPU axis final steaks.*)
+
+PROCEDURE FINAL_STREAK_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN FINAL_STREAK (AA [I]);
+
+END;
+
+(* REVERSE EM ALL reverses directions of all available ANIMAL MCPU axes.*)
+
+PROCEDURE REVERSE_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.STREAK
+                  THEN AA [I].M.DIR := NOT AA [I].M.DIR;
+
+END;
+
+(* INITIALIZE EM ALL initializes all available ANIMAL MCPU axes. *)
+
+PROCEDURE INIT_EM_ALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';                  (* Ready ? *)
+
+   OUTCMD ('W');                      (* Wake Up...*)
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN INITX (AA [I].M);      (* Initialize block...*)
+
+   OUTCMD ('O');                      (* Overhear *)
+
+   OUTCMD ('Z');                      (* Zzzzz *)
+
+END;
+
+(* 'FAST_SPEEDS' resets all specified MCPU motor speeds back to their
+(* maximum default values for fastest motor operations. *)
+
+PROCEDURE FAST_SPEEDS;
+
+(* 'SPEED_OUT' resets a single MCPU motor to its max default speed. *)
+
+PROCEDURE SPEED_OUT (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   IF A.R.ACCEL
+      THEN BEGIN
+           A.M.ACCELST := TRUE;
+           A.M.LOWSPD  := A.R.MIN_LOWSPD;
+           A.M.HIGHSPD := A.R.MAX_HIGHSPD;
+           A.M.RAMPCNT := A.R.MAX_RAMPCNT;
+           END
+      ELSE BEGIN
+           A.M.ACCELST := FALSE;
+           A.M.SPEED := A.R.MAX_SPEED;
+           END;
+
+END;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN SPEED_OUT (AA [I]);
+
+END;
+
+(* MATCH_LIVE_ACTION_AXES goes through all specified Live-Action axes to be run
+(* and matches all their run-time speeds (if possible), so that
+(* all running axes will start and end at (roughly) the same time. *)
+
+PROCEDURE MATCH_LIVE_ACTION_AXES (VAR MATCH : BOOLEAN);
+
+(* MATCH_REAL_TIME matches up the speeds for each specified real-time axis. *)
+
+PROCEDURE MATCH_REAL_TIME (VAR A : AXIS_TABLE);
+
+VAR SPEED : INTEGER;
+    TIME : REAL;
+    DISTANCE : REAL;
+    STEPS : REAL;
+    FRAMES : INTEGER;
+
+BEGIN
+
+IF A.R.ACCEL
+   THEN SPEED := A.R.MAX_HIGHSPD
+   ELSE SPEED := A.R.MAX_SPEED;
+
+IF SPEED < ROUND (A.M.STEPCNT / TOTAL_TIME)
+
+   THEN BEGIN
+        STEPS := (SPEED * TOTAL_TIME);
+        RECONVERT (STEPS, A.K.KSCALE, DISTANCE);
+        TIME := A.M.STEPCNT / SPEED;
+        FRAMES := ROUND (TIME / FRAME_TIME);
+
+        WRITELN ('ERROR -- running too fast for ', A.ID, ' axis');
+        WRITELN ('Either shorten ', A.ID, ' axis travel: ',DISTANCE:6:1,' ',A.K.UNITS);
+        WRITELN ('Or else lengthen overall Frame Count: ', FRAMES, ' Frames');
+        WRITELN;
+        MATCH := FALSE;
+        END  (* IF real-time speed not possible *)
+
+   ELSE BEGIN
+        IF A.R.ACCEL
+           THEN BEGIN
+                A.M.HIGHSPD := ROUND (A.M.STEPCNT / TOTAL_TIME);
+                IF A.M.HIGHSPD < A.R.MIN_LOWSPD
+                   THEN BEGIN
+                        A.M.ACCELST := FALSE;
+                        A.M.SPEED := A.M.HIGHSPD;
+                        END
+                   ELSE BEGIN
+                        A.M.ACCELST := TRUE;
+                        A.M.LOWSPD := A.R.MIN_LOWSPD;
+                        A.M.RAMPCNT := ROUND ((A.M.HIGHSPD / A.R.MAX_HIGHSPD) * A.R.MAX_RAMPCNT);
+                        END;
+                END  (* IF accelearated speed possible *)
+
+           ELSE BEGIN
+                A.M.ACCELST := FALSE;
+                A.M.SPEED := ROUND (A.M.STEPCNT / TOTAL_TIME);
+                END; (* IF constant speed possible *)
+
+        END; (* IF real-time speed is possible *)
+
+END;
+
+BEGIN
+
+   MATCH := TRUE;
+
+   IF EXPOSURE_TIME < STD_EXP_TIME
+      THEN FRAME_TIME := STD_EXP_TIME + LAPSE_TIME
+      ELSE FRAME_TIME := EXPOSURE_TIME + LAPSE_TIME;
+   TOTAL_TIME := PRESET_COUNT * FRAME_TIME;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN MATCH_REAL_TIME (AA [I]);
+
+END;
+
+(* MATCH_GO_MOTION_AXES goes through all specified Go-Motion axes to be run
+(* and matches all their run-time streaking speeds (if possible), so that
+(* all streaking axes will start and end at (roughly) the same time. *)
+
+PROCEDURE MATCH_GO_MOTION_AXES (VAR MATCH : BOOLEAN);
+
+(* MEASURE STREAK measures out the max streak exposure time among all axes.*)
+
+PROCEDURE MEASURE_STREAK (VAR A : AXIS_TABLE);
+
+VAR TIME : REAL;
+
+BEGIN
+
+   IF A.R.ACCEL
+      THEN TIME := A.M.STEPCNT / A.R.MAX_HIGHSPD
+      ELSE TIME := A.M.STEPCNT / A.R.MAX_SPEED;
+
+   IF TIME > STREAK_TIME
+      THEN STREAK_TIME := TIME;
+
+END;
+
+(* MATCH_STREAK matches up the speeds for each specified streaking axis. *)
+
+PROCEDURE MATCH_STREAK (VAR A : AXIS_TABLE);
+
+VAR SPEED : INTEGER;
+    TIME : REAL;
+    DISTANCE : REAL;
+    STEPS : REAL;
+
+BEGIN
+
+IF A.R.ACCEL
+   THEN SPEED := A.R.MAX_HIGHSPD
+   ELSE SPEED := A.R.MAX_SPEED;
+
+IF SPEED < ROUND (A.M.STEPCNT / STREAK_TIME)
+
+   THEN BEGIN
+        STEPS := (SPEED * STREAK_TIME);
+        RECONVERT (STEPS, A.K.KSCALE, DISTANCE);
+        TIME := A.M.STEPCNT / SPEED;
+
+        WRITELN ('ERROR -- streaking too fast for ', A.ID, ' axis');
+        WRITELN ('Either shorten ', A.ID, ' axis travel: ',DISTANCE:6:1,' ',A.K.UNITS);
+        WRITELN ('Or else lengthen overall Exposure Time: ', TIME:6:2, ' Seconds');
+        WRITELN;
+        MATCH := FALSE;
+        END (* IF streaking not possible *)
+
+   ELSE BEGIN
+        IF A.R.ACCEL
+           THEN BEGIN
+                A.M.HIGHSPD := ROUND (A.M.STEPCNT / STREAK_TIME);
+                IF A.M.HIGHSPD < A.R.MIN_LOWSPD
+                   THEN BEGIN
+                        A.M.ACCELST := FALSE;
+                        A.M.SPEED := A.M.HIGHSPD;
+                        END
+                   ELSE BEGIN
+                        A.M.ACCELST := TRUE;
+                        A.M.LOWSPD := A.R.MIN_LOWSPD;
+                        A.M.RAMPCNT := ROUND((A.M.HIGHSPD / A.R.MAX_HIGHSPD) * A.R.MAX_RAMPCNT);
+                        END;
+                END (* IF accelerated speed possible *)
+
+           ELSE BEGIN
+                A.M.ACCELST := FALSE;
+                A.M.SPEED := ROUND (A.M.STEPCNT / STREAK_TIME);
+                END; (* IF constant speed possible *)
+
+        END; (* IF streaking speed is possible *)
+
+END;
+
+BEGIN
+
+   STREAK_TIME := STD_EXP_TIME;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.STREAK
+                  THEN MEASURE_STREAK (AA [I]);
+
+   MATCH := TRUE;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.STREAK
+                  THEN MATCH_STREAK (AA [I]);
+
+   {EXPOSURE_TIME := STREAK_TIME;}
+
+END;
+
+(****PGM****)
+
+(* SPECIFY_FRAMES inputs the frame count. *)
+
+PROCEDURE SPEC_FRAMES;
+
+BEGIN
+
+   WRITE ('Frame Count = ');
+   RDLNINT (FRAME_COUNT);
+   WRITELN;
+   PRESET_COUNT := FRAME_COUNT;
+
+END;
+
+(* SPECIFY EXPOSURE inputs the exposure time. *)
+
+PROCEDURE SPEC_EXPOSURE;
+
+BEGIN
+
+   WRITE ('Exposure Time = ');
+   RDLNREAL (EXPOSURE_TIME);
+   WRITELN;
+   {IF EXPOSURE_TIME < STD_EXP_TIME
+      THEN EXPOSURE_TIME := STD_EXP_TIME;}
+
+   E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
+   E.M.ACCELST := FALSE;
+   INITM (E.M);
+
+END;
+
+(* SPECIFY_CAMERA allows the user to specify the camera parameters. *)
+
+PROCEDURE SPEC_CAMERA;
+
+VAR CH : CHAR;
+    ANSWER : CHAR;
+    SELECTION : BOOLEAN;
+    EXPOSURE_COUNT : INTEGER;
+    ADVANCE_COUNT : INTEGER;
+    SHUTTER_STAT : STRING [10];
+    DIRECTION_STAT : STRING [10];
+
+BEGIN
+
+   IF ROTOSCOPING
+      THEN SHUTTER_STAT := 'OPEN'
+      ELSE SHUTTER_STAT := 'CLOSED';
+
+   IF E.M.DIR = REV
+      THEN DIRECTION_STAT := 'REV'
+      ELSE DIRECTION_STAT := 'FWD';
+
+   GETCOUNT (XC.C);
+   RECONVERT (XC.C.COUNT, XC.K.KSCALE, SHUTTER_ANGLE);
+
+   WRITELN ('Camera Selection Menu:');
+   WRITELN;
+   WRITELN ('   E : Exposure Time Interval        |', EXPOSURE_TIME:10:2);
+   WRITELN ('   N : Number of Exposures per Move  |', FRAME_STEP:10);
+   WRITELN ('   T : Total Net Frame Count         |', TOTAL_COUNT:10);
+   WRITELN ('   S : Shutter Open/Closed           |', SHUTTER_STAT:10);
+   WRITELN ('   D : Direction Forward/Reverse     |', DIRECTION_STAT:10);
+   WRITELN ('   V : Variable Shutter Angle        |', SHUTTER_ANGLE:10:1);
+   WRITELN ('   F : Fade In/Out Sequence');
+   WRITELN ('   A : Advance Only Overide');
+   WRITELN ('   C : Camera Exposure Overide');
+   WRITELN ('   Q : Quit Camera Selections');
+   WRITELN;
+
+   SELECTION := FALSE;
+
+   REPEAT
+
+      RDCON (CH);
+
+      CASE CH OF
+
+           'C' : BEGIN
+                 WRITE ('amera Count = ');
+                 RDLNINT (EXPOSURE_COUNT);
+                 IF EXPOSURE_COUNT < 0
+                    THEN E.M.DIR := REV
+                    ELSE E.M.DIR := FWD;
+                 E.M.STEPCNT := ABS (EXPOSURE_COUNT);
+                 RUNM (E.M);
+                 TOTAL_COUNT := TOTAL_COUNT + EXPOSURE_COUNT;
+                 END;
+
+           'A' : BEGIN
+                 WRITE ('dvance Count = ');
+                 RDLNINT (ADVANCE_COUNT);
+                 IF ADVANCE_COUNT < 0
+                    THEN A.M.DIR := REV
+                    ELSE A.M.DIR := FWD;
+                 A.M.STEPCNT := ABS (ADVANCE_COUNT);
+                 RUNM (A.M);
+                 TOTAL_COUNT := TOTAL_COUNT + ADVANCE_COUNT;
+                 END;
+
+           'E' : BEGIN
+                 WRITE ('xposure Time = ');
+                 RDLNREAL (EXPOSURE_TIME);
+
+                 E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
+                 E.M.ACCELST := FALSE;
+                 INITM (E.M);
+                 END;
+
+           'S' : BEGIN
+                 WRITE ('hutter...');
+                 HOMEM (E.M);
+                 ROTOSCOPING := NOT ROTOSCOPING;
+                 IF ROTOSCOPING
+                    THEN WRITELN ('Open')
+                    ELSE WRITELN ('Closed');
+                 END;
+
+           'F' : BEGIN
+                 WRITE ('ade Length Frame Count = ');
+                 RDLNINT (FADE_LENGTH);
+                 FADE := TRUE;
+
+                 WRITE ('Maximum Fade Exposure Time = ');
+                 RDLNREAL (EXPOSURE_TIME);
+                 WRITELN;
+
+                 WRITE ('Fade In or Out? (I/O) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 IF ANSWER = 'I'
+                    THEN FADEIN := TRUE
+                    ELSE FADEIN := FALSE;
+
+                 WRITE ('Linear or Logarithmic? (L/G) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 WRITELN;
+                 IF ANSWER = 'G'
+                    THEN FADELOG := TRUE
+                    ELSE FADELOG := FALSE;
+
+                 IF FADELOG
+                    THEN BEGIN
+                         WRITE ('Number of f/stops to Fade = ');
+                         RDLNREAL (NSTOPS);
+                         WRITE ('Logarithmic Fade Taper  % = ');
+                         RDLNREAL (FADE_TAPER);
+                         TAPERED_FADE := (FADE_TAPER > 0.0);
+
+                         WRITE ('Sine or Linear Taper? (S/L) ');
+                         RDCON (ANSWER);
+                         WRITELN;
+                         WRITELN;
+                         TAPERED_SINE := (ANSWER = 'S');
+                         END;
+
+                 PRE_COMPUTE_FADE;
+                 END;
+
+           'V' : BEGIN
+                 WRITE ('ariable Shutter Angle = ');
+                 RDLNREAL (SHUTTER_ANGLE);
+                 VARIABLE_SHUTTER (SHUTTER_ANGLE);
+                 END;
+
+           'N' : BEGIN
+                 WRITE ('umber of Exposures per Interval = ');
+                 RDLNINT (FRAME_STEP);
+                 IF FRAME_STEP < 1
+                    THEN FRAME_STEP := 1;
+                 END;
+
+           'D' : BEGIN
+                 WRITE ('irection? (F/R) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 IF ANSWER = 'R'
+                    THEN E.M.DIR := REV
+                    ELSE E.M.DIR := FWD;
+                 END;
+
+           'T' : BEGIN
+                 WRITE ('otal Count = ');
+                 RDLNINT (TOTAL_COUNT);
+                 END;
+
+           'Q' : BEGIN
+                 WRITELN ('uit Camera Selections');
+                 WRITELN;
+                 SELECTION := TRUE;
+                 END;
+
+           CR :  SELECTION := TRUE;
+
+           ELSE  WRITELN;
+
+           END; (* CASE selection *)
+
+   UNTIL SELECTION;
+
+END;    (* procedure SPEC_CAMERA *)
+
+(* NON SPECIFY PARAMETER resets all parameter variables for each axis.*)
+
+PROCEDURE NON_SPEC (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   A.P.SPEC := FALSE;
+   A.P.TAPER := FALSE;
+   A.P.STREAK := FALSE;
+
+   A.P.CUR_PT := A.K.CUR_POSN;
+   A.P.START_PT := A.K.CUR_POSN;
+   A.P.END_PT := A.K.CUR_POSN;
+
+   A.P.MULTI := FALSE;
+   A.P.SEGMENT := 0;
+   A.P.TOTAL := 0;
+
+END;
+
+(* Procedure 'SPECIFY_PARAMETER' inputs the movement parameters
+(* for the specified axis movement X,Y,Z,R :
+(*     START point,
+(*     END point,
+(*     TYPE of progression between start & end pts. *)
+
+(* Includes the Go-Motion Streaking option parameters:
+(*     INITIAL streak size.
+(*     FINAL streak size. *)
+
+PROCEDURE SPEC_PARAMETER (VAR A : AXIS_TABLE) ;
+
+VAR ANSWER : CHAR;
+    MOVETYPE : CHAR;
+    SELECTION : CHAR;
+
+    SPEC_FRAME : BOOLEAN;
+    SPEC_POSITION : BOOLEAN;
+    SPEC_TAPER : BOOLEAN;
+    SPEC_STREAK : BOOLEAN;
+    QUIT_PARAMETERS : BOOLEAN;
+
+    FRAMES : INTEGER;
+    INCR : REAL;
+    AREA : REAL;
+    SPEED : INTEGER;
+    TIME : REAL;
+
+    I : INTEGER;
+    S : INTEGER;
+    T : INTEGER;
+    MOTORNO : CHAR;
+
+BEGIN
+
+IF NOT A.SPEC
+   THEN BEGIN
+        A.SPEC := TRUE;
+        A.P.SPEC := TRUE;
+        A.P.MULTI := FALSE;
+        A.P.SEGMENT := 0;
+        A.P.TOTAL := 0;
+
+        A.P.START_FRAME := 0;
+        A.P.END_FRAME := PRESET_COUNT;
+
+        A.P.CUR_PT := A.K.CUR_POSN;
+        A.P.START_PT := A.P.CUR_PT;
+        A.P.END_PT := A.P.CUR_PT;
+
+        A.P.TAPER := FALSE;
+        A.P.MOVETYPE := 'CON';
+        A.P.ACCEL := 0.0;
+        A.P.KONST := 100.0;
+        A.P.DECEL := 0.0;
+
+        A.P.STREAK := FALSE;
+        A.P.CUR_SIZE := 0.0;
+        A.P.INITL_SIZE := 0.0;
+        A.P.FINAL_SIZE := 0.0;
+
+        FOR I := 1 TO 10 DO
+            A.I [I] := A.P;
+        END;
+
+WRITE (A.ID, ' Axis is at Current Position = ');
+WRITE (A.P.CUR_PT:6:1);
+WRITELN (' ', A.K.UNITS);
+WRITELN;
+
+IF LIVEACTION
+   THEN BEGIN
+        WRITE ('Start Position = ');
+        RDLNREAL (A.P.START_PT);
+        WRITE ('End   Position = ');
+        RDLNREAL (A.P.END_PT);
+        WRITELN;
+
+        IF A.P.START_PT = A.P.END_PT
+           THEN BEGIN
+           WRITE ('NOTE: Start Position = End Position -- Delete Axis? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           IF ANSWER <> 'N'
+              THEN A.SPEC := FALSE;
+           END;
+        END;
+
+IF STOPMOTION OR GOMOTION THEN BEGIN
+
+WRITELN ('Axis Parameter Selections:');
+WRITELN;
+WRITELN ('     F : Frame Number Start/End');
+WRITELN ('     P : Position Axis Start/End');
+IF STOPMOTION OR GOMOTION THEN
+WRITELN ('     T : Taper Movement Type In/Out');
+IF GOMOTION THEN
+WRITELN ('     S : Streak Size Initial/Final');
+WRITELN ('     M : Multiple Segment Selection');
+WRITELN ('     D : Delete Axis from Sequence');
+WRITELN ('     Q : Quit axis parameter selections');
+WRITELN;
+
+QUIT_PARAMETERS := FALSE;
+
+REPEAT
+
+     RDCON (SELECTION);
+
+     CASE SELECTION OF
+
+          'F' : BEGIN
+                WRITELN ('rame Number');
+                WRITELN;
+                WRITE ('Start Frame Number = ');
+                RDLNINT (A.P.START_FRAME);
+                WRITE ('End   Frame Number = ');
+                RDLNINT (A.P.END_FRAME);
+                WRITELN;
+
+                FRAMES := A.P.END_FRAME - A.P.START_FRAME;
+                WRITELN ('Effective Frame Count = ', FRAMES, ' Frames');
+                WRITELN;
+                END;  (* CASE Frame *)
+
+          'P' : BEGIN
+                WRITELN ('osition for Axis');
+                WRITELN;
+                WRITE ('Start Position = ');
+                RDLNREAL (A.P.START_PT);
+                WRITE ('End   Position = ');
+                RDLNREAL (A.P.END_PT);
+                WRITELN;
+
+                FRAMES := A.P.END_FRAME - A.P.START_FRAME;
+                IF FRAMES = 0
+                   THEN INCR := 0.0
+                   ELSE INCR := (A.P.END_PT - A.P.START_PT) / FRAMES;
+                WRITELN ('Increment Size = ', INCR:6:1, ' ', A.K.UNITS);
+                WRITELN;
+                END;  (* CASE Position *)
+
+          'J' : BEGIN
+                WRITELN ('og Positions for Axis');
+                WRITELN;
+                MOTORNO := CHR (A.M.MOTORNO);
+                WRITE ('Goto Start Position -->   ');
+                OVERUN (MOTORNO, MOTORNO);
+                GETCOUNT (A.C);
+                UPDATE (A);
+                A.P.START_PT := A.K.CUR_POSN;
+                WRITELN ('   ', A.P.START_PT:6:1);
+
+                WRITE ('Goto End   Position -->   ');
+                OVERUN (MOTORNO, MOTORNO);
+                GETCOUNT (A.C);
+                UPDATE (A);
+                A.P.END_PT := A.K.CUR_POSN;
+                WRITELN ('   ', A.P.END_PT:6:1);
+                WRITELN;
+
+                FRAMES := A.P.END_FRAME - A.P.START_FRAME;
+                IF FRAMES = 0
+                   THEN INCR := 0.0
+                   ELSE INCR := (A.P.END_PT - A.P.START_PT) / FRAMES;
+                WRITELN ('Increment Size = ', INCR:6:1, ' ', A.K.UNITS);
+                WRITELN;
+                END;  (* CASE Jog Position *)
+
+          'T' : IF STOPMOTION OR GOMOTION THEN BEGIN
+
+                WRITELN ('apered Axis Movements ');
+                WRITELN;
+
+                A.P.TAPER := TRUE;
+                WRITE ('% Taper In  = ');
+                RDLNREAL (A.P.ACCEL);
+                IF A.P.ACCEL > 100.0
+                   THEN A.P.ACCEL := 100.0;
+
+                WRITE ('% Taper Out = ');
+                RDLNREAL (A.P.DECEL);
+                IF (A.P.ACCEL + A.P.DECEL) > 100.0
+                   THEN A.P.DECEL := 100.0 - A.P.ACCEL;
+
+                A.P.KONST := 100.0 - (A.P.ACCEL + A.P.DECEL);
+                WRITELN ('% Constant Increments = ', A.P.KONST:3:0);
+                WRITELN;
+
+                IF A.P.KONST = 100.0
+                     THEN A.P.MOVETYPE := 'CON'
+                ELSE IF A.P.ACCEL = 100.0
+                     THEN A.P.MOVETYPE := 'EXP'
+                ELSE IF A.P.DECEL = 100.0
+                     THEN A.P.MOVETYPE := 'LOG'
+                     ELSE A.P.MOVETYPE := 'VAR';
+
+                IF A.P.KONST < 100.0
+                   THEN BEGIN
+                        WRITE ('Sine or Linear Taper? (S/L) ');
+                        RDCON (ANSWER);
+                        WRITELN;
+                        WRITELN;
+                        IF ANSWER = 'S'
+                           THEN A.P.MOVETYPE := 'SIN';
+                        END;
+
+                FRAMES := A.P.END_FRAME - A.P.START_FRAME;
+                IF FRAMES = 0
+                   THEN INCR := 0.0
+                   ELSE INCR := (A.P.END_PT - A.P.START_PT) / FRAMES;
+                AREA := (0.5 * A.P.ACCEL + A.P.KONST + 0.5 * A.P.DECEL) / 100;
+                INCR := INCR / AREA;
+                WRITELN ('Maximum Increment Size = ', INCR:6:1, ' ', A.K.UNITS);
+                WRITELN;
+                END;  (* CASE tapering at all *)
+
+         'S' : IF GOMOTION THEN BEGIN
+
+               WRITELN ('treaking Parameters');
+               WRITELN;
+
+               A.P.STREAK := TRUE;
+               WRITE ('Initial Streak Size = ');
+               RDLNREAL (A.P.INITL_SIZE);
+               A.P.FINAL_SIZE := A.P.INITL_SIZE;
+               WRITE ('Final   Streak Size = ');
+               RDLNREAL (A.P.FINAL_SIZE);
+               WRITELN;
+
+               CONVERT (A.P.INITL_SIZE, A.K.KSCALE, A.X.INITL_CNT);
+               CONVERT (A.P.FINAL_SIZE, A.K.KSCALE, A.X.FINAL_CNT);
+
+               IF A.R.ACCEL
+                  THEN SPEED := A.R.MAX_HIGHSPD
+                  ELSE SPEED := A.R.MAX_SPEED;
+               IF ABS (A.X.INITL_CNT) > ABS (A.X.FINAL_CNT)
+                  THEN TIME := ABS (A.X.INITL_CNT / SPEED)
+                  ELSE TIME := ABS (A.X.FINAL_CNT / SPEED);
+               WRITELN ('Maximum Streak Exposure Time = ', TIME:6:2, ' Seconds');
+               WRITELN;
+               END;  (* CASE Go Motion streaking parameters *)
+
+         'M' : BEGIN
+               WRITE ('ulti-Segment Number = ');
+               RDINT (S);
+               WRITE (' of Total = ');
+               RDLNINT (T);
+               WRITELN;
+               A.P.MULTI := TRUE;
+               A.P.SEGMENT := S;
+               A.P.TOTAL := T;
+               A.I [S] := A.P;
+
+               IF A.P.END_FRAME > PRESET_COUNT
+                  THEN PRESET_COUNT := A.P.END_FRAME;
+               A.P.START_FRAME := A.P.END_FRAME;
+               A.P.END_FRAME := PRESET_COUNT;
+               A.P.START_PT := A.P.END_PT;
+               IF GOMOTION
+                  THEN A.P.INITL_SIZE := A.P.FINAL_SIZE;
+
+               FOR I := 1 TO T DO
+                   A.I [I].TOTAL := T;
+               END;  (* CASE Multi-Segment specification *)
+
+         'D' : BEGIN
+               WRITELN ('elete Axis from Sequence');
+               WRITELN;
+               A.SPEC := FALSE;
+               END;  (* CASE Delete *)
+
+         'Q' : QUIT_PARAMETERS := TRUE;
+
+         CR :  QUIT_PARAMETERS := TRUE;
+
+         ELSE  WRITELN;
+
+         END;  (* CASE axis parameters *)
+
+UNTIL QUIT_PARAMETERS;
+
+END;  (* IF Stop Motion or Go Motion selections *)
+
+CONVERT (A.P.START_PT, A.K.KSCALE, A.X.START_STP);
+CONVERT (A.P.END_PT, A.K.KSCALE, A.X.END_STP);
+
+IF A.P.END_FRAME > PRESET_COUNT
+   THEN PRESET_COUNT := A.P.END_FRAME;
+FRAME_COUNT := PRESET_COUNT;
+
+GETCOUNT (A.C);
+UPDATE (A);
+
+END;  (* procedure SPEC PARAMETER *)
+
+(* SPEC_EACH pre-specifies each of the ANIMAL axis parameters. *)
+
+PROCEDURE SPEC_EACH;
+
+VAR MOVESPEC : CHAR2;
+    MOVEMENTS_SPECIFIED : BOOLEAN;
+    ALL_SPEC : BOOLEAN;
+    OK : BOOLEAN;
+    AX : AXIS_TABLE;
+
+BEGIN
+
+   MOVEMENTS_SPECIFIED := FALSE;
+
+   REPEAT
+
+      CLRSCRN;
+      STATUS;
+
+      WRITELN ('Specify +/- Axis Parameters:      |  (Use 2-letter selections)');
+      WRITELN;
+      WRITELN ('PN : PN Axis = Pan                |  FF : FF Axis = Follow Focus');
+      WRITELN ('TL : TL Axis = Tilt               |  ZM : ZM Axis = Zoom Lens');
+      WRITELN ('BM : BM Axis = Boom               |  XA : XA Axis = Aux Line A');
+      WRITELN ('HT : HT Axis = Height             |  XB : XB Axis = Aux Line B');
+      WRITELN ('TR : TR Axis = Track              |  XC : XC Axis = Aux Line C');
+      WRITELN ('RT : RT Axis = Rotation           |  XD : XD Axis = Aux Line D');
+      WRITELN ('LP : LP Axis = Loop Lens          |  XE : XE Axis = Aux Line E');
+      WRITELN ('GR : GR Axis = Gir Lens           |  XF : XF Axis = Aux Line F');
+      WRITELN ('RL : RL Axis = Roll Lens          |  XG : XG Axis = Aux Line G');
+      WRITELN ('LV : LV Axis = Level              |  QQ : Quit Axis Selections');
+      WRITELN;
+
+      RDCON (MOVESPEC [1]);
+      RDCON (MOVESPEC [2]);
+      WRITELN;
+      CLREST;
+      WRITELN;
+
+      CASE_AXIS (MOVESPEC, OK, AX);
+      IF OK THEN SPEC_PARAMETER (AX);
+      SWAP_AXIS_BACK (MOVESPEC, AX);
+
+      IF MOVESPEC = 'QQ'
+         THEN MOVEMENTS_SPECIFIED := TRUE;
+
+      IF MOVESPEC [2] = (CR)
+         THEN MOVEMENTS_SPECIFIED := TRUE;
+
+   UNTIL MOVEMENTS_SPECIFIED;
+
+END;
+
+(* SPEC_AXIS pre-specifies all of the ANIMAL axis parameters. *)
+
+PROCEDURE SPEC_AXIS;
+
+VAR MOVESPEC : CHAR;
+    MOVEMENTS_SPECIFIED : BOOLEAN;
+    ALL_SPEC : BOOLEAN;
+    ANSWER : CHAR;
+    EXPOSURE_STAT : STRING [10];
+    SEQUENCE_STAT : STRING [10];
+    DISPLAY_STAT : STRING [10];
+
+BEGIN
+
+   MOVEMENTS_SPECIFIED := FALSE;
+
+   REPEAT
+
+      CLRSCRN;
+      STATUS;
+
+      IF EXPOSURE
+         THEN EXPOSURE_STAT := 'ON'
+         ELSE EXPOSURE_STAT := 'OFF';
+
+      IF SEQUENCED
+         THEN SEQUENCE_STAT := 'AUTO'
+         ELSE SEQUENCE_STAT := 'MAN';
+
+      IF DISPLAY
+         THEN DISPLAY_STAT := 'ON'
+         ELSE DISPLAY_STAT := 'OFF';
+
+      WRITELN ('Specify Scene Selections:');
+      WRITELN;
+      WRITELN ('   F : Frame Count');
+      WRITELN ('   A : Axis Parameters');
+      WRITELN ('   C : Camera Functions');
+      WRITELN ('   E : Exposures On/Off           |', EXPOSURE_STAT:10);
+      WRITELN ('   T : Time Delay Sequencing      |', SEQUENCE_TIME:10:3);
+      WRITELN ('   S : Sequencing Options         |', SEQUENCE_STAT:10);
+      WRITELN ('   D : Display for Run On/Off     |', DISPLAY_STAT:10);
+      WRITELN ('   O : Overide Motor Axes');
+      WRITELN ('   Q : Quit Selections');
+      WRITELN;
+
+      RDCON (MOVESPEC);
+
+      CASE MOVESPEC OF
+
+           'A' : SPEC_EACH;
+
+           'F' : BEGIN
+                 WRITE ('rame Count = ');
+                 RDLNINT (FRAME_COUNT);
+                 PRESET_COUNT := FRAME_COUNT;
+                 END;
+
+           'E' : BEGIN
+                 WRITE ('xposures Active? (Y/N) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 CASE ANSWER OF
+                      'Y' : EXPOSURE := TRUE;
+                      'N' : EXPOSURE := FALSE;
+                      'E' : EXPOSURE := NOT EXPOSURE;
+                      CR  : EXPOSURE := TRUE;
+                      END;
+                 END;
+
+           'C' : BEGIN
+                 CLREST;
+                 WRITELN;
+                 SPEC_CAMERA;
+                 END;
+
+           'T' : BEGIN
+                 WRITE ('ime Delay = ');
+                 RDLNREAL (SEQUENCE_TIME);
+                 MCPU_DELAY := ROUND (1000 * SEQUENCE_TIME);
+                 END;
+
+           'S' : BEGIN
+                 WRITE ('equencing...Manual or Automatic? (M/A) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 WRITELN;
+                 CASE ANSWER OF
+                      'M' : SEQUENCED := FALSE;
+                      'A' : SEQUENCED := TRUE;
+                      'S' : SEQUENCED := NOT SEQUENCED;
+                      CR  : SEQUENCED := TRUE;
+                      END;
+
+                 IF NOT SEQUENCED
+                    THEN BEGIN
+                         WRITE ('Remote Triggering? (Y/N) ');
+                         RDCON (ANSWER);
+                         WRITELN;
+                         WRITELN;
+                         IF ANSWER = 'Y'
+                            THEN REMOTE := TRUE
+                            ELSE REMOTE := FALSE;
+                         END;
+
+                 IF SEQUENCED
+                    THEN WRITELN ('Axis Movements Sequenced by ANIMAL...')
+                    ELSE WRITELN ('Axis Movements Single-Stepped by User...');
+                 WRITELN;
+                 {WAIT_A_SECOND;}
+                 END;
+
+           'D' : BEGIN
+                 WRITE ('isplay Active? (Y/N) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 WRITELN;
+                 CASE ANSWER OF
+                      'Y' : DISPLAY := TRUE;
+                      'N' : DISPLAY := FALSE;
+                      'D' : DISPLAY := NOT DISPLAY;
+                      CR  : DISPLAY := TRUE;
+                      END;
+                 END;
+
+           'O' : BEGIN
+                 WRITELN ('veride...');
+                 WRITELN;
+                 OVERIDE;
+                 UPDATE_EM_ALL;
+                 END;
+
+           'Q' : MOVEMENTS_SPECIFIED := TRUE;
+
+           CR :  MOVEMENTS_SPECIFIED := TRUE;
+
+           ELSE  WRITELN;
+
+           END;   (* CASE scene selections *)
+
+   UNTIL MOVEMENTS_SPECIFIED;
+
+   WRITELN;
+   WRITELN;
+
+   IF PRESET_COUNT = 0
+      THEN SPEC_FRAMES;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF NOT AA [I].SPEC
+          THEN NON_SPEC (AA [I]);
+
+END;
+
+(*****RUN*****)
+
+(* ALIGN START aligns each axis to the pre-specified starting position. *)
+
+PROCEDURE ALIGN_START (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   CONVERT (A.P.START_PT, A.K.KSCALE, A.X.START_STP);
+
+   IF A.K.CUR_STEP <> A.X.START_STP
+      THEN BEGIN
+           A.M.STEPCNT := A.X.START_STP - A.K.CUR_STEP;
+           PREPM (A.M);
+           MOVEM (A.M);
+           WRITELN ('Moving ', A.ID, ' Axis into Position...');
+           END;
+
+END;
+
+(* ALIGN aligns a specified axis into its starting or ending position. *)
+
+PROCEDURE ALIGN (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   IF A.SPEC
+      THEN ALIGN_START (A);
+
+END;
+
+(* ALIGN EM ALL aligns all axes in a row. *)
+
+PROCEDURE ALIGN_EM_ALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';                  (* Ready ? *)
+
+   OUTCMD ('W');                      (* Wake Up...*)
+
+   FOR I := 1 TO MAX_AXES DO
+       ALIGN (AA [I]);                (* Drive block...*)
+
+   OUTCMD ('O');                      (* Overhear *)
+
+   OUTCMD ('Z');                      (* Zzzzz *)
+
+END;
+
+(* ALIGN_POSITION checks to see if each motor axis is in its
+(* initial position prior to running the current scene sequence. *)
+
+PROCEDURE ALIGN_POSITION;
+
+BEGIN
+
+   CLRSCRN;
+
+   WRITELN;
+   WRITELN ('Initializing Axis Positions...');
+   WRITELN;
+
+   UPDATE_EM_ALL;
+
+   FAST_SPEEDS;
+   INIT_EM_ALL;
+   WAITBACK;
+
+   ALIGN_EM_ALL;
+   WAITBACK;
+
+   WRITELN;
+   WRITELN ('All Specified Axes in Position');
+   WRITELN;
+
+   UPDATE_EM_ALL;
+   STATUS;
+
+END;
+
+(* SWAP INT swaps the order of 2 integers. *)
+
+PROCEDURE SWAPINT (VAR A,B : INTEGER);
+
+VAR C : INTEGER;
+
+BEGIN
+
+   C := A;
+   A := B;
+   B := C;
+
+END;
+
+(* SWAP REAL swaps the order of 2 reals. *)
+
+PROCEDURE SWAPREAL (VAR A,B : REAL);
+
+VAR C : REAL;
+
+BEGIN
+
+   C := A;
+   A := B;
+   B := C;
+
+END;
+
+(* REVERSE PARAMETERS reverses the order of the sequence parameters. *)
+
+PROCEDURE REVERSE_PARAMETERS (VAR P : PARAMETER_TABLE);
+
+BEGIN
+
+   SWAPINT (P.START_FRAME, P.END_FRAME);
+   P.START_FRAME := PRESET_COUNT - P.START_FRAME;
+   P.END_FRAME := PRESET_COUNT - P.END_FRAME;
+   SWAPREAL (P.START_PT, P.END_PT);
+   IF P.TAPER
+      THEN SWAPREAL (P.ACCEL, P.DECEL);
+   IF P.STREAK
+      THEN SWAPREAL (P.INITL_SIZE, P.FINAL_SIZE);
+
+END;
+
+(* REVERSE SEQUENCE reverses the order of the run-time sequence. *)
+
+PROCEDURE REVERSE_SEQUENCE;
+
+VAR P : ARRAY [1..10] OF PARAMETER_TABLE;
+    S : INTEGER;
+    T : INTEGER;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.MULTI
+                  THEN BEGIN
+                       T := AA [I].P.TOTAL;
+                       FOR S := 1 TO T DO
+                           BEGIN
+                           P [S] := AA [I].I [S];
+                           REVERSE_PARAMETERS (P [S]);
+                           END;
+                       FOR S := 1 TO T DO
+                           BEGIN
+                           AA [I].I [S] := P [T+1-S];
+                           AA [I].I [S].SEGMENT := S;
+                           END;
+                       AA [I].P := AA [I].I [1];
+                       END
+                  ELSE REVERSE_PARAMETERS (AA [I].P);
+
+END;
+
+(* RUN_EM_ALL runs all specified MCPU motors in synchronism. *)
+
+PROCEDURE RUN_EM_ALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';                  (* Ready ? *)
+
+   OUTCMD ('W');                      (* Wake Up...*)
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN MOVEM (AA [I].M);      (* Drive block...*)
+
+   OUTCMD ('O');                      (* Overhear *)
+
+   OUTCMD ('Z');                      (* Zzzzz...*)
+
+END;
+
+(* SINGLE-STEP POINT allows the user to single-step through
+(* axis incrementations whenever ready. *)
+
+PROCEDURE SINGLE_STEP_POINT;
+
+VAR KEY : CHAR;
+
+BEGIN
+
+IF NOT SEQUENCED
+   THEN BEGIN
+        WRITE ('Ready to Proceed? > ');
+        IF REMOTE
+           THEN REMOTE_TRIGGER (KEY)
+           ELSE RDCON (KEY);
+        WRITELN;
+        WRITELN;
+
+        IF (KEY = 'Q') OR (KEY = 'N')
+           THEN CLEAR_SEQUENCE;
+        END;
+
+END;
+
+(* RUN_STOP_MOTION executes the motion sequences for the Stop-Motion
+(* mode of operation, alternating camera exposures with axis motion. *)
+
+PROCEDURE RUN_STOP_MOTION;
+
+BEGIN
+
+   FAST_SPEEDS;
+   INIT_EM_ALL;
+   WAITBACK;
+
+   SEQUENCE_OVER := FALSE;
+
+   REPEAT
+
+      IF DISPLAY THEN CLRSCRN;
+      IF DISPLAY THEN STATUS;
+
+      IF EXPOSURE
+         THEN EXPOSEIT;
+      IF DISPLAY THEN WRITELN ('Camera Exposure...');
+      IF DISPLAY THEN WRITELN;
+      WAITOVER;
+
+      IF FADE
+         THEN FADEIT;
+
+      IF NOT SEQUENCE_OVER
+         THEN BEGIN
+
+              COMPUTE_EM_ALL;
+
+              RUN_EM_ALL;
+
+              IF DISPLAY THEN WRITELN ('Axis Motors Running...');
+              WAITBACK;
+              IF DISPLAY THEN WRITELN ('Axis Motors Stopped...');
+              IF DISPLAY THEN WRITELN;
+
+              UPDATE_SOME;
+
+              IF NOT SEQUENCED
+                 THEN SINGLE_STEP_POINT;
+
+              END; (* IF axes to move *)
+
+      FRAME_COUNT := FRAME_COUNT + FRAME_STEP;
+
+      IF EXPOSURE
+         THEN IF E.M.DIR = FWD
+                 THEN TOTAL_COUNT := TOTAL_COUNT + FRAME_STEP
+                 ELSE TOTAL_COUNT := TOTAL_COUNT - FRAME_STEP;
+
+      IF FRAME_COUNT >= HOLD_FRAME
+         THEN SEQUENCE_OVER := TRUE;
+
+      TRANSFER_SEGMENT_ALL;
+
+   UNTIL SEQUENCE_OVER;
+
+   WRITELN ('Scene Over');
+   WAIT_A_SECOND;
+   WRITELN;
+
+END;
+
+(* RUN_LIVE_ACTION executes the motion sequences for the Live Action mode,
+(* simultaneously running camera exposures and axis motion. *)
+
+PROCEDURE RUN_LIVE_ACTION;
+
+VAR ERROR : BOOLEAN;
+
+BEGIN
+
+   FRAME_STEP := PRESET_COUNT;
+   FRAME_COUNT := 0;
+
+   CLRSCRN;
+   STATUS;
+
+   COMPUTE_EM_ALL;
+
+   MATCH_LIVE_ACTION_AXES (ERROR);
+   INIT_EM_ALL;
+   WAITBACK;
+
+   IF EXPOSURE THEN EXPOSEIT;
+
+   RUN_EM_ALL;
+
+   WRITELN ('All Axes Running...');
+   WAITBACK;
+   WRITELN ('All Axes Stopped...');
+   WRITELN;
+
+   CLRSCRN;
+   UPDATE_EM_ALL;
+   IF E.M.DIR = FWD
+      THEN TOTAL_COUNT := TOTAL_COUNT + FRAME_COUNT
+      ELSE TOTAL_COUNT := TOTAL_COUNT - FRAME_COUNT;
+   FRAME_COUNT := PRESET_COUNT;
+   STATUS;
+
+   WRITELN ('Scene Over');
+   WAIT_A_SECOND;
+   WRITELN;
+
+END;
+
+(* RUN_GO_MOTION executes the motion sequences for the Go-Motion mode,
+(* synchonizing selected axis motion during camera exposures. *)
+
+PROCEDURE RUN_GO_MOTION;
+
+VAR ERROR : BOOLEAN;
+
+BEGIN
+
+   SEQUENCE_OVER := FALSE;
+
+   REPEAT
+
+      UPDATE_SOME;
+      IF DISPLAY THEN CLRSCRN;
+      IF DISPLAY THEN STATUS;
+
+      COMPUTE_STREAK_EM_ALL;
+
+      MATCH_GO_MOTION_AXES (ERROR);
+      INIT_EM_ALL;
+      WAITBACK;
+
+      IF STREAK_EXPOSURE
+         THEN EXPOSURE_TIME := STREAK_TIME + STREAK_DELAY;
+
+      IF EXPOSURE
+         THEN EXPOSEIT;
+      IF DISPLAY THEN WRITELN ('Streak Exposure...');
+      IF DISPLAY THEN WRITELN;
+
+      IF STREAK_DELAY > 0.0
+         THEN DELAY (ROUND (STREAK_DELAY * 1000));
+
+      RUN_EM_ALL;
+
+      IF DISPLAY THEN WRITELN ('Streak Motors Running...');
+      WAITBACK;
+      IF DISPLAY THEN WRITELN ('Streak Motors Stopped...');
+      IF DISPLAY THEN WRITELN;
+
+      UPDATE_SOME;
+
+      IF NOT SEQUENCE_OVER
+         THEN BEGIN
+
+              FAST_SPEEDS;
+              INIT_EM_ALL;
+              WAITBACK;
+
+              REVERSE_EM_ALL;
+
+              RUN_EM_ALL;
+
+              IF DISPLAY THEN WRITELN ('Streak Motors Reversing...');
+              WAITBACK;
+              IF DISPLAY THEN WRITELN ('Streak Motors Stopped...');
+              IF DISPLAY THEN WRITELN;
+
+              UPDATE_SOME;
+
+              END;  (* IF axes ok to reverse *)
+
+      IF NOT SEQUENCE_OVER
+         THEN BEGIN
+
+              COMPUTE_EM_ALL;
+
+              RUN_EM_ALL;
+
+              IF DISPLAY THEN WRITELN ('Incrementation Motors Running...');
+              WAITBACK;
+              IF DISPLAY THEN WRITELN ('Incrementation Motors Stopped...');
+              IF DISPLAY THEN WRITELN;
+
+              UPDATE_SOME;
+
+              IF NOT SEQUENCED
+                 THEN SINGLE_STEP_POINT;
+
+              END; (* IF axes ok to increment *)
+
+      FRAME_COUNT := FRAME_COUNT + FRAME_STEP;
+      IF E.M.DIR = FWD
+         THEN TOTAL_COUNT := TOTAL_COUNT + FRAME_STEP
+         ELSE TOTAL_COUNT := TOTAL_COUNT - FRAME_STEP;
+
+      IF FRAME_COUNT >= HOLD_FRAME
+         THEN SEQUENCE_OVER := TRUE;
+
+      TRANSFER_SEGMENT_ALL;
+
+   UNTIL SEQUENCE_OVER;
+
+   WRITELN ('Scene Over');
+   WAIT_A_SECOND;
+   WRITELN;
+
+END;
+
+PROCEDURE GO_RUN_STOP_MOTION;
+
+VAR READY : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+   PRE_TRANSFER_SEGMENT_ALL;
+   PRE_COMPUTE_EM_ALL;
+
+   RUN_STOP_MOTION;
+
+END;  (* procedure GO_RUN_STOP_MOTION *)
+
+PROCEDURE GO_RUN_LIVE_ACTION;
+
+VAR READY : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+   FRAME_STEP := PRESET_COUNT;
+   PRE_COMPUTE_EM_ALL;
+
+   RUN_LIVE_ACTION;
+
+END;  (* procedure GO_RUN_LIVE_ACTION *)
+
+PROCEDURE GO_RUN_GO_MOTION;
+
+VAR READY : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+   PRE_TRANSFER_SEGMENT_ALL;
+   PRE_COMPUTE_EM_ALL;
+   PRE_COMPUTE_STREAK_EM_ALL;
+
+   RUN_GO_MOTION;
+
+END;  (* procedure GO_RUN_GO_MOTION *)
+
+(* GO RUN runs the programmed axis sequences. *)
+
+PROCEDURE GO_RUN;
+
+BEGIN
+
+   IF PRESET_COUNT = 0
+      THEN SPEC_FRAMES;
+
+   UPDATE_EM_ALL;
+
+   IF STOPMOTION
+        THEN GO_RUN_STOP_MOTION
+   ELSE IF GOMOTION
+        THEN GO_RUN_GO_MOTION
+   ELSE IF LIVEACTION
+        THEN GO_RUN_LIVE_ACTION;
+
+END;
+
+(* GO RUN OPTIONS allows for run-time options prior to running sequences. *)
+
+(* OVERLAY *) PROCEDURE GO_RUN_OPTIONS;
+
+VAR OPTION : CHAR;
+    ANSWER : CHAR;
+    SELECTION : BOOLEAN;
+
+PROCEDURE RUN_OPTIONS_MENU;
+
+BEGIN
+
+WRITELN ('ANIMAL Sequence Run-Time Options:');
+WRITELN;
+WRITELN ('   R : Run sequence under programmed conditions');
+WRITELN ('   C : Continue sequence under current conditions');
+WRITELN ('   A : Align axes into Starting/Ending positions');
+WRITELN ('   O : Overide MCPU axes for alternate positions');
+WRITELN ('   I : Invert parameters for reverse run sequence');
+WRITELN ('   H : Hold Frame Count for stopping sequence');
+WRITELN ('   Q : Quit run options and return to program');
+WRITELN;
+
+END;
+
+BEGIN
+
+RUN_OPTIONS_MENU;
+
+HOLD_FRAME := PRESET_COUNT;
+SELECTION := FALSE;
+
+REPEAT
+
+   RDCON (OPTION);
+
+   CASE OPTION OF
+
+        'R' : BEGIN
+              WRITELN ('un...');
+              WRITELN;
+              FRAME_COUNT := 0;
+              PRE_TRANSFER_SEGMENT_ALL;
+              ALIGN_POSITION;
+              WRITE ('Ready To Run? (Y/N) ');
+              RDCON (ANSWER);
+              IF ANSWER <> 'N'
+                 THEN GO_RUN;
+              SELECTION := TRUE;
+              END;
+
+        'C' : BEGIN
+              WRITELN ('ontinue...');
+              WRITELN;
+              IF STOPMOTION
+                   THEN RUN_STOP_MOTION
+              ELSE IF GOMOTION
+                   THEN RUN_GO_MOTION
+              ELSE IF LIVEACTION
+                   THEN RUN_LIVE_ACTION;
+              SELECTION := TRUE;
+              END;
+
+        'A' : BEGIN
+              WRITE ('lign ... ');
+              {RDCON (ANSWER);}
+              WRITELN;
+              WRITELN;
+              {REVERSE := (ANSWER = 'E');}
+              PRE_TRANSFER_SEGMENT_ALL;
+              ALIGN_POSITION;
+              {REVERSE := FALSE;}
+              RUN_OPTIONS_MENU;
+              END;
+
+        'I' : BEGIN
+              WRITELN ('nvert sequence...');
+              WRITELN;
+              {REVERSE := TRUE;}
+              REVERSE_SEQUENCE;
+              {REVERSE := FALSE;}
+              {FRAME_COUNT := 0;}
+              STATUS;
+              END;
+
+        'O' : BEGIN
+              WRITELN ('veride...');
+              WRITELN;
+              OVERIDE;
+              WRITELN;
+              RUN_OPTIONS_MENU;
+              END;
+
+        'H' : BEGIN
+              WRITE ('old Frame Count = ');
+              RDLNINT (HOLD_FRAME);
+              WRITELN;
+              END;
+
+        'Q' : BEGIN
+              WRITELN ('uit...');
+              WRITELN;
+              SELECTION := TRUE;
+              END;
+
+        CR :  BEGIN
+              IF FRAME_COUNT < PRESET_COUNT
+                 THEN IF STOPMOTION
+                           THEN RUN_STOP_MOTION
+                      ELSE IF GOMOTION
+                           THEN RUN_GO_MOTION
+                      ELSE IF LIVEACTION
+                           THEN RUN_LIVE_ACTION;
+              SELECTION := TRUE;
+              END;
+
+        ELSE  WRITELN;
+
+        END;
+
+UNTIL SELECTION;
+
+END;
+
+(*****PGM*****)
+
+PROCEDURE GO_PGM_STOP_MOTION;
+
+VAR READY : BOOLEAN;
+
+BEGIN
+
+  UPDATE_EM_ALL;
+
+  SPEC_AXIS;
+
+END;  (* procedure GO_PGM_STOP_MOTION *)
+
+PROCEDURE GO_PGM_LIVE_ACTION;
+
+VAR READY : BOOLEAN;
+    MATCH_OK : BOOLEAN;
+    SICK_OF_IT : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+  UPDATE_EM_ALL;
+
+     REPEAT
+
+        SPEC_AXIS;
+
+        FRAME_STEP := FRAME_COUNT;
+        PRE_COMPUTE_EM_ALL;
+
+        MATCH_LIVE_ACTION_AXES (MATCH_OK);
+        IF NOT MATCH_OK
+           THEN BEGIN
+                WRITE ('Return for re-programming? (Y/N) ');
+                RDCON (ANSWER);
+                IF ANSWER = 'N'
+                   THEN SICK_OF_IT := TRUE
+                   ELSE SICK_OF_IT := FALSE;
+                END;
+
+     UNTIL MATCH_OK OR SICK_OF_IT;
+
+END;  (* procedure GO_PGM_LIVE_ACTION *)
+
+PROCEDURE GO_PGM_GO_MOTION;
+
+VAR READY : BOOLEAN;
+    MATCH_INIT : BOOLEAN;
+    MATCH_FINAL : BOOLEAN;
+    SICK_OF_IT : BOOLEAN;
+    ANSWER : CHAR;
+    KEY : CHAR;
+    INITL_EXP : REAL;
+    FINAL_EXP : REAL;
+
+BEGIN
+
+  UPDATE_EM_ALL;
+
+     REPEAT
+
+        SPEC_AXIS;
+
+        FINAL_STREAK_EM_ALL;
+        MATCH_GO_MOTION_AXES (MATCH_FINAL);
+        FINAL_EXP := STREAK_TIME;
+
+        IF NOT MATCH_FINAL
+           THEN BEGIN
+                WRITELN ('...Final Streak Size(s) Too Large...');
+                WRITELN;
+                END;
+
+        PRE_COMPUTE_STREAK_EM_ALL;
+        MATCH_GO_MOTION_AXES (MATCH_INIT);
+        INITL_EXP := STREAK_TIME;
+
+        IF NOT MATCH_INIT
+           THEN BEGIN
+                WRITELN ('...Initial Streak Size(s) Too Large...');
+                WRITELN;
+                END;
+
+        IF (NOT MATCH_INIT) OR (NOT MATCH_FINAL)
+           THEN BEGIN
+                WRITE ('Return for re-programming? (Y/N) ');
+                RDCON (ANSWER);
+                IF ANSWER = 'N'
+                   THEN SICK_OF_IT := TRUE
+                   ELSE SICK_OF_IT := FALSE;
+                END;
+
+     UNTIL (MATCH_INIT AND MATCH_FINAL) OR SICK_OF_IT;
+
+   WRITELN ('Initial Maximum Streak Exposure Time = ', INITL_EXP:5:2, ' sec');
+   WRITELN ('Final   Maximum Streak Exposure Time = ', FINAL_EXP:5:2, ' sec');
+   WRITELN;
+
+   STREAK_DELAY := 0.0;
+   WRITE ('Streak Delay Time (if any) = ');
+   RDLNREAL (STREAK_DELAY);
+   WRITELN;
+   EXPOSURE_TIME := STREAK_TIME + STREAK_DELAY;
+
+   STREAK_EXPOSURE := TRUE;
+   WRITE ('Exposure Time linked to Streak Time? (Y/N) ');
+   RDCON (ANSWER);
+   WRITELN;
+   WRITELN;
+   IF ANSWER = 'N'
+      THEN BEGIN
+           WRITE ('Exposure Time = ');
+           RDLNREAL (EXPOSURE_TIME);
+           STREAK_EXPOSURE := FALSE;
+           END
+
+END;  (* procedure GO_PGM_GO_MOTION *)
+
+(* GO SPECIFY inputs the axis parameter selections. *)
+
+PROCEDURE GO_SPECIFY;
+
+BEGIN
+
+   IF STOPMOTION
+        THEN GO_PGM_STOP_MOTION
+   ELSE IF GOMOTION
+        THEN GO_PGM_GO_MOTION
+   ELSE IF LIVEACTION
+        THEN GO_PGM_LIVE_ACTION;
+
+END;
+
+(* GO PROGRAM resets and inputs the programmed axis parameters. *)
+
+(* OVERLAY *) PROCEDURE GO_PROGRAM;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       AA [I].SPEC := FALSE;
+
+   GO_SPECIFY;
+
+   IF PRESET_COUNT > 0
+      THEN GO_RUN_OPTIONS;
+
+END;
+
+(* GO SAVE FILE saves the programmed axis parameters onto a disk data file. *)
+
+(* OVERLAY *) PROCEDURE GO_SAVE_FILE;
+
+VAR SEQNAME : STRING [14];
+    SEQFILE : FILE OF PARAMETER_TABLE;
+
+    NAME_OK : BOOLEAN;
+    SAVE_OK : BOOLEAN;
+    ANSWER : CHAR;
+
+    I : INTEGER;
+    S : INTEGER;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       AA [I].P.SPEC := AA [I].SPEC;
+
+   E.P.START_PT := PRESET_COUNT;
+   E.P.END_PT := EXPOSURE_TIME;
+   E.P.INCR_PT := FRAME_STEP;
+
+REPEAT
+
+   WRITELN;
+   WRITE ('Sequence File Name: ');
+   READLN (SEQNAME);
+   WRITELN;
+
+   WRITELN ('Proceeding to Save File...');
+   ASSIGN (SEQFILE, SEQNAME);
+   {$I-}
+   REWRITE (SEQFILE);
+   {$I+}
+
+   IF IORESULT = 0
+      THEN SAVE_OK := TRUE
+      ELSE BEGIN
+           SAVE_OK := FALSE;
+           WRITE ('File Saving Error -- Try again? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN NAME_OK := FALSE
+              ELSE NAME_OK := TRUE;
+           END;
+
+UNTIL NAME_OK OR SAVE_OK;
+
+IF SAVE_OK
+   THEN BEGIN
+
+   WRITE (SEQFILE, E.P);
+
+   FOR I := 1 TO MAX_AXES DO
+       IF NOT AA [I].P.MULTI
+          THEN WRITE (SEQFILE, AA [I].P)
+          ELSE FOR S := 1 TO AA [I].P.TOTAL DO
+                   WRITE (SEQFILE, AA [I] .I [S]);
+
+   CLOSE (SEQFILE);
+   WRITELN ('File saving completed');
+   WRITELN;
+   END;  (* IF File Saving ok *)
+
+END;
+
+(* GO LOAD FILE loads the programmed axis parameters from disk. *)
+
+(* OVERLAY *) PROCEDURE GO_LOAD_FILE;
+
+VAR SEQNAME : STRING [14];
+    SEQFILE : FILE OF PARAMETER_TABLE;
+
+    NAME_OK : BOOLEAN;
+    LOAD_OK : BOOLEAN;
+    ANSWER : CHAR;
+
+    I : INTEGER;
+    S : INTEGER;
+
+BEGIN
+
+REPEAT
+
+   WRITELN;
+   WRITE ('Sequence File Name: ');
+   READLN (SEQNAME);
+   WRITELN;
+
+   WRITELN ('Proceeding to Load File...');
+   ASSIGN (SEQFILE, SEQNAME);
+   {$I-}
+   RESET (SEQFILE);
+   {$I+}
+
+   IF IORESULT = 0
+      THEN LOAD_OK := TRUE
+      ELSE BEGIN
+           LOAD_OK := FALSE;
+           WRITE ('File Not Found -- Try again? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN NAME_OK := FALSE
+              ELSE NAME_OK := TRUE;
+           END;
+
+UNTIL NAME_OK OR LOAD_OK;
+
+IF LOAD_OK
+   THEN BEGIN
+
+   READ (SEQFILE, E.P);
+
+   FOR I := 1 TO MAX_AXES DO
+       BEGIN
+       READ (SEQFILE, AA [I].P);
+       IF AA [I].P.MULTI
+          THEN BEGIN
+               AA [I] .I [1] := AA [I] .P;
+               IF AA [I] .P.TOTAL > 1
+                  THEN FOR S := 2 TO  AA [I] .P.TOTAL DO
+                           READ (SEQFILE, AA [I] .I [S]);
+               END;
+        END;
+
+   CLOSE (SEQFILE);
+   WRITELN ('File loading completed');
+   WRITELN;
+
+   FOR I := 1 TO MAX_AXES DO
+       AA [I].SPEC := AA [I].P.SPEC;
+
+   PRESET_COUNT := ROUND (E.P.START_PT);
+   FRAME_COUNT := PRESET_COUNT;
+   EXPOSURE_TIME := E.P.END_PT;
+   FRAME_STEP := ROUND (E.P.INCR_PT);
+
+   E.M.ACCELST := FALSE;
+   E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
+   INITM (E.M);
+   WAITOVER;
+
+   END;  (* IF loading ok *)
+
+END;
+
+BEGIN   (* GO ANIMAL *)
+
+FOR I := 1 TO MAX_AXES DO
+    AA [I].SPEC := FALSE;
+
+FRAME_COUNT := 0;
+FRAME_STEP := 1;
+PRESET_COUNT := 0;
+
+QUITTING_TIME := FALSE;
+
+REPEAT
+
+   CLRSCRN;
+   UPDATE_EM_ALL;
+   STATUS;
+
+   IF STOPMOTION
+        THEN WRITELN ('ANIMAL Stop Motion Sequence Options:')
+   ELSE IF GOMOTION
+        THEN WRITELN ('ANIMAL Go Motion Streaking Sequence Options:')
+   ELSE IF LIVEACTION
+        THEN WRITELN ('ANIMAL Live Action Sequence Options:');
+   WRITELN;
+   WRITELN ('   P : Program and Run a sequence');
+   WRITELN ('   M : Modify a pre-programmed sequence');
+   WRITELN ('   R : Run a pre-programmed sequence');
+   WRITELN ('   O : Overide MCPU axis selections');
+   WRITELN ('   S : Save a sequence onto disk file');
+   WRITELN ('   L : Load a sequence from disk file');
+   WRITELN ('   F : File Directory listing of disk');
+   WRITELN ('   Q : Quit --- return to main menu');
+   WRITELN;
+
+   RDCON (CH);
+
+   CASE CH OF
+
+        'P' : BEGIN
+              WRITELN ('rogram...');
+              GO_PROGRAM;
+              END;
+
+        'R' : BEGIN
+              WRITELN ('un Options...');
+              WRITELN;
+              GO_RUN_OPTIONS;
+              END;
+
+        'M' : BEGIN
+              WRITELN ('odify...');
+              GO_SPECIFY;
+              END;
+
+        'O' : BEGIN
+              WRITELN ('veride...');
+              WRITELN;
+              OVERIDE;
+              END;
+
+        'S' : BEGIN
+              WRITELN ('ave sequence');
+              GO_SAVE_FILE;
+              END;
+
+        'L' : BEGIN
+              WRITELN ('oad sequence');
+              GO_LOAD_FILE;
+              END;
+
+        'F' : BEGIN
+              WRITELN ('ile Directory Listing...');
+              WRITELN;
+              FILE_DIRECTORY;
+              WRITE ('Press any Key to Proceed > ');
+              RDKEY (ANSWER);
+              WRITELN;
+              END;
+
+        'Q' : BEGIN
+              WRITE ('uit ');
+              IF STOPMOTION
+                   THEN WRITE ('Stop Motion')
+              ELSE IF GOMOTION
+                   THEN WRITE ('Go Motion')
+              ELSE IF LIVEACTION
+                   THEN WRITE ('Live Action');
+              WRITE (' Programming...for sure? (Y/N) ');
+              CLRKEY;
+              RDCON (ANSWER);
+              WRITELN;
+              WRITELN;
+              IF ANSWER = 'Y' THEN QUITTING_TIME := TRUE;
+              END;
+        END;
+
+UNTIL QUITTING_TIME;
+
+END;   (* GO ANIMAL *)
+
+

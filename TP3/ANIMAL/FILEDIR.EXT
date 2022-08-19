@@ -1,0 +1,246 @@
+
+(* Directory Search -- MS DOS Version 1.0 -- File Control Block Method *)
+
+PROCEDURE FILE_DIRECTORY;
+
+TYPE REGISTER_SET = RECORD
+        AX,BX,CX,DX,BP,SI,DI,DS,ES,FLAGS : INTEGER;
+        END;
+
+     CHAR_STRING = ARRAY [1..12] OF CHAR;
+
+     STRING_ARRAY = ARRAY [1..128] OF CHAR_STRING;
+
+     BYTE_CHAR = 0..255;
+
+VAR I : INTEGER;
+    ERROR : BOOLEAN;
+
+    REG : REGISTER_SET;
+    DTA : ARRAY [1..128] OF BYTE_CHAR;
+    FCB : ARRAY [1..24]  OF BYTE_CHAR;
+
+    FILE_NAME : CHAR_STRING;
+
+    DIR_NO : INTEGER;
+    DIR : STRING_ARRAY;
+
+PROCEDURE INIT_DTA;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   FOR I := 1 TO 128 DO
+       DTA [I] := 0;
+
+END;
+
+PROCEDURE INIT_FCB;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   FOR I := 1 TO 24 DO
+       FCB [I] := 0;
+
+END;
+
+PROCEDURE WILDCARD_FCB;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   FOR I := 2 TO 12 DO
+       FCB [I] := ORD ('?');
+
+END;
+
+PROCEDURE SET_DISK_TRANSFER_ADDRESS;
+
+BEGIN
+
+   REG.AX := $1A * 256;          (* AH <-- Set-DTA fn *)
+   REG.DS := SEG (DTA [1]);      (* DS:DX <-- DTA address *)
+   REG.DX := OFS (DTA [1]);
+   MSDOS (REG);
+
+END;
+
+PROCEDURE SCAN_DIR_ONCE;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   INIT_DTA;
+   SET_DISK_TRANSFER_ADDRESS;
+
+   INIT_FCB;
+   WILDCARD_FCB;
+
+   REG.AX := $11 * 256;         (* AH <-- Scan-Directory-Once fn *)
+   REG.DS := SEG (FCB [1]);     (* DS:DX <-- Wild Card FCB address *)
+   REG.DX := OFS (FCB [1]);
+   MSDOS (REG);
+   IF REG.AX MOD 256 = 0        (* AL <-- scan success status *)
+      THEN ERROR := FALSE       (* (DTA) <-- scanned FCB *)
+      ELSE ERROR := TRUE;
+
+   IF NOT ERROR
+      THEN BEGIN
+           FOR I := 1 TO 8 DO
+               FILE_NAME [I] := CHR (DTA [I+1]);
+           FILE_NAME [9] := '.';
+           FOR I := 10 TO 12 DO
+               FILE_NAME [I] := CHR (DTA [I]);
+           END;
+
+END;
+
+PROCEDURE SCAN_DIR_AGAIN;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   REG.AX := $12 * 256;         (* AH <-- Scan-Directory-Again fn *)
+   REG.DS := SEG (FCB [1]);     (* DS:DX <-- Wild Card FCB address *)
+   REG.DX := OFS (FCB [1]);
+   MSDOS (REG);
+   IF REG.AX MOD 256 = 0        (* AL <-- scan success status *)
+      THEN ERROR := FALSE       (* (DTA) <-- scanned FCB *)
+      ELSE ERROR := TRUE;
+
+   IF NOT ERROR
+      THEN BEGIN
+           FOR I := 1 TO 8 DO
+               FILE_NAME [I] := CHR (DTA [I+1]);
+           FILE_NAME [9] := '.';
+           FOR I := 10 TO 12 DO
+               FILE_NAME [I] := CHR (DTA [I]);
+           END;
+
+END;
+
+PROCEDURE SCAN_ALL_DIR;
+
+VAR I : INTEGER;
+
+BEGIN
+
+   SCAN_DIR_ONCE;
+
+   IF ERROR
+      THEN I := 0
+
+      ELSE BEGIN
+           I := 1;
+           DIR [I] := FILE_NAME;
+
+           REPEAT
+              SCAN_DIR_AGAIN;
+
+              IF NOT ERROR
+                 THEN BEGIN
+                      I := SUCC (I);
+                      DIR [I] := FILE_NAME;
+                      END;
+           UNTIL ERROR;
+           END;
+
+   DIR_NO := I;
+
+END;
+
+(* Bubble Sort procedure iteratively:
+(*    (1) compares 2 adjacent elements of an array;
+(*    (2) swaps 2 adjacent elements if they are of the wrong order;
+(* Lightest elements eventually bubble up to top of array. *)
+
+PROCEDURE BUBBLE_SORT (MAX : INTEGER; VAR A : STRING_ARRAY);
+
+VAR I : INTEGER;
+    SWITCHED : BOOLEAN;
+
+PROCEDURE SWAP (VAR A,B : CHAR_STRING);
+
+VAR T : CHAR_STRING;
+
+BEGIN
+
+   T := A;
+   A := B;
+   B := T;
+
+END;
+
+BEGIN
+
+   REPEAT
+
+      SWITCHED := FALSE;
+
+      FOR I := 1 TO MAX-1 DO
+          IF A [I] > A [I+1]
+             THEN BEGIN
+                  SWAP (A [I], A [I+1]);
+                  SWITCHED := TRUE;
+                  END;
+
+   UNTIL NOT SWITCHED;
+
+END;
+
+PROCEDURE DISPLAY_DIR;
+
+VAR I : INTEGER;
+    C : INTEGER;
+    M : INTEGER;
+
+BEGIN
+
+   IF DIR_NO = 0
+      THEN BEGIN
+           WRITELN ('No Files in Selected Directory');
+           WRITELN;
+           END
+
+      ELSE BEGIN
+           WRITELN (DIR_NO, ' Files in Selected Directory:');
+           WRITELN;
+
+           M := DIR_NO DIV 4;
+           IF DIR_NO MOD 4 <> 0
+              THEN BEGIN
+                   M := SUCC (M);
+                   FOR I := (DIR_NO + 1) TO (M * 4) DO
+                       DIR [I] := '            ';
+                   END;
+
+           FOR I := 1 TO M DO
+               BEGIN
+               WRITE (DIR [I]);
+               WRITE (DIR [M + I] :20);
+               WRITE (DIR [2*M + I] :20);
+               WRITE (DIR [3*M + I] :20);
+               WRITELN;
+               END;
+           WRITELN;
+           END;
+
+END;
+
+BEGIN
+
+   SCAN_ALL_DIR;
+
+   BUBBLE_SORT (DIR_NO, DIR);
+
+   DISPLAY_DIR;
+
+END;
+
+

@@ -1,0 +1,1714 @@
+
+(* 7-axis point plotting program
+(* for use on 7-axis MCPU switch-box accessory. *)
+
+(* 08-25-85 *)
+(* Turbo Pascal *)
+(* Extended 24-bit Step Counts *)
+(* Real-Number Point-Plotting *)
+(* Additional Point-Plotting Command Keys *)
+(* Overlay files for separate Point-Plotters *)
+(* Automatic Increment Computations *)
+(* Compacted 7-axis Array Processing *)
+
+(* OVERLAY *) PROCEDURE AXIS_PLOT;
+
+CONST FWD = TRUE;
+      REV = FALSE;
+
+      UP = #$38;
+      DN = #$32;
+      LE = #$34;
+      RI = #$36;
+      CR = #$0D;
+      BS = #$08;
+      SP = #$20;
+
+      MX = 7;
+      MAXPOINTS = 1024;
+
+TYPE POINT_TABLE = ARRAY [1..MAXPOINTS] OF REAL;
+
+     PLOT_TABLE = RECORD
+        SPEC : BOOLEAN;
+        ID : CHAR2;
+        MM : AXIS;
+        CC : COUNT_TABLE;
+        KK : CONVERSION_TABLE;
+        PT : POINT_TABLE;
+        END;
+
+VAR CH : CHAR;
+    ID : CHAR2;
+    OK : BOOLEAN;
+    AX : AXIS_TABLE;
+
+    BYTE : CHAR;
+    ANSWER : CHAR;
+    I : INTEGER;
+    N : INTEGER;
+
+    STARTPT : INTEGER;
+    ENDPT : INTEGER;
+    XYNO : INTEGER;
+
+    AP : ARRAY [1..MX] OF PLOT_TABLE;
+
+(* GET ALL gets the set of axis positions from the MCPU. *)
+
+PROCEDURE GETALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';     (* Ready ? *)
+
+   OUTCMD ('W');         (* Wake up *)
+
+   FOR N := 1 TO MX DO   (* Inquiry block *)
+       IF AP [N].SPEC
+          THEN STATX (AP [N].CC);
+
+   OUTCMD ('Z');         (* Zzzzz *)
+
+END;
+
+(* RUN ALL runs the set of axes synchronously. *)
+
+PROCEDURE RUNALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';     (* Ready ? *)
+
+   OUTCMD ('W');         (* Wake up *)
+
+   FOR N := 1 TO MX DO   (* Drive block *)
+       IF AP [N].SPEC
+          THEN RUNX (AP [N].MM);
+
+   OUTCMD ('O');         (* Overhear *)
+
+   OUTCMD ('Z');         (* Zzzzz *)
+
+END;
+
+(* GO PLOT BOX plots in points for 7 selected MCPU axes
+(* under control of the switch-box accessory. *)
+
+(* OVERLAY *) PROCEDURE GO_PLOT_BOX;
+
+VAR I : INTEGER;
+    CH : CHAR;
+    BYTE : CHAR;
+    KEYST : BOOLEAN;
+    SIOST : BOOLEAN;
+    MOTORNO : CHAR;
+    COUNTL : CHAR;
+    COUNTH : CHAR;
+    COUNTX : CHAR;
+    QUIT_PLOTTING : BOOLEAN;
+
+BEGIN
+
+WRITELN ('(Press any Key when Ready to Pause or Quit Manual Plotting)');
+WRITELN;
+
+WRITE ('Point':8);
+FOR N := 1 TO MX DO
+    IF AP [N].SPEC
+       THEN WRITE ('Axis #':9, N:1);
+WRITELN;
+WRITELN;
+
+GETALL;
+WRITE ('  ':8);
+FOR N := 1 TO MX DO
+    IF AP [N].SPEC
+       THEN WRITE (AP [N].CC.COUNT:10:0);
+WRITELN;
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');
+
+   OUTCMD ('P');
+
+   OUTCMD ('M');
+   MOTORNO := CHR (AP[1].MM.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('M');
+   MOTORNO := CHR (AP[2].MM.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('M');
+   MOTORNO := CHR (AP[3].MM.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('M');
+   MOTORNO := CHR (AP[4].MM.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('M');
+   MOTORNO := CHR (AP[5].MM.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('M');
+   MOTORNO := CHR (AP[6].MM.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   OUTCMD ('M');
+   MOTORNO := CHR (AP[7].MM.MOTORNO);
+   OUTSIO (MOTORNO);
+
+   I := STARTPT;
+   QUIT_PLOTTING := FALSE;
+   REPEAT
+
+      OUTCMD ('L');
+
+      REPEAT
+
+         REPEAT
+            INSIOST (SIOST);
+            RDKEYST (KEYST);
+         UNTIL (SIOST) OR (KEYST);
+
+         IF SIOST
+            THEN BEGIN
+                 INSIO (BYTE);
+                 DELAY (50);
+                 END;
+
+         IF KEYST
+            THEN BEGIN
+                 WRITELN;
+                 WRITE ('Quit maunal plotting now? (Y/N) ');
+                 CLRKEY;
+                 RDCON (CH);
+                 WRITELN;
+                 IF CH = 'Y'
+                    THEN BEGIN
+                         OUTCMD ('Q');
+                         INSIO (BYTE);
+                         DELAY (50);
+                         QUIT_PLOTTING := TRUE;
+                         END;
+                 WRITELN;
+                 END;
+
+      UNTIL (BYTE = 'P') OR (QUIT_PLOTTING);
+
+      IF NOT QUIT_PLOTTING THEN BEGIN
+
+      IF BYTE = 'P'
+         THEN BEGIN
+              OUTCMD ('1');
+              INSIO  (COUNTL);
+              OUTCMD ('H');
+              INSIO  (COUNTH);
+              OUTCMD ('X');
+              INSIO  (COUNTX);
+              BYTEREAL (COUNTL, COUNTH, COUNTX, AP [1].PT [I]);
+
+              OUTCMD ('2');
+              INSIO  (COUNTL);
+              OUTCMD ('H');
+              INSIO  (COUNTH);
+              OUTCMD ('X');
+              INSIO  (COUNTX);
+              BYTEREAL (COUNTL, COUNTH, COUNTX, AP [2].PT [I]);
+
+              OUTCMD ('3');
+              INSIO  (COUNTL);
+              OUTCMD ('H');
+              INSIO  (COUNTH);
+              OUTCMD ('X');
+              INSIO  (COUNTX);
+              BYTEREAL (COUNTL, COUNTH, COUNTX, AP [3].PT [I]);
+
+              OUTCMD ('4');
+              INSIO  (COUNTL);
+              OUTCMD ('H');
+              INSIO  (COUNTH);
+              OUTCMD ('X');
+              INSIO  (COUNTX);
+              BYTEREAL (COUNTL, COUNTH, COUNTX, AP [4].PT [I]);
+
+              OUTCMD ('5');
+              INSIO  (COUNTL);
+              OUTCMD ('H');
+              INSIO  (COUNTH);
+              OUTCMD ('X');
+              INSIO  (COUNTX);
+              BYTEREAL (COUNTL, COUNTH, COUNTX, AP [5].PT [I]);
+
+              OUTCMD ('6');
+              INSIO  (COUNTL);
+              OUTCMD ('H');
+              INSIO  (COUNTH);
+              OUTCMD ('X');
+              INSIO  (COUNTX);
+              BYTEREAL (COUNTL, COUNTH, COUNTX, AP [6].PT [I]);
+
+              OUTCMD ('7');
+              INSIO  (COUNTL);
+              OUTCMD ('H');
+              INSIO  (COUNTH);
+              OUTCMD ('X');
+              INSIO  (COUNTX);
+              BYTEREAL (COUNTL, COUNTH, COUNTX, AP [7].PT [I]);
+
+              WRITE (I:8);
+              FOR N := 1 TO MX DO
+                  WRITE (AP [N].PT [I]:10:0);
+              WRITELN;
+
+              I := SUCC (I);
+              END; (* IF plotted values input *)
+
+      END; (* IF final plotted value input *)
+
+   UNTIL QUIT_PLOTTING;
+   ENDPT := PRED (I);
+
+   OUTCMD ('Z');
+
+GETALL;
+WRITE ('  ':8);
+FOR N := 1 TO MX DO
+    IF AP [N].SPEC
+       THEN WRITE (AP [N].CC.COUNT:10:0);
+WRITELN;
+WRITELN;
+
+END;   (* procedure GO PLOT BOX *)
+
+(* GO PLOT KEY plots in a set of XY coordinates for
+(* 7 axes through a combination of
+(* run commands and arrow key commands. *)
+
+(* OVERLAY *) PROCEDURE GO_PLOT_KEY;
+
+VAR I : INTEGER;
+    CH : CHAR;
+    KEY : CHAR;
+    AX : CHAR;
+
+    X_AXIS : CHAR;
+    Y_AXIS : CHAR;
+
+    INCR : REAL;
+    XINCR : REAL;
+    YINCR : REAL;
+    DESTN : REAL;
+    DIST : REAL;
+
+    VELOCITY : INTEGER;
+    LOW_SPEED : INTEGER;
+    HIGH_SPEED : INTEGER;
+    RAMP_COUNT : INTEGER;
+    QUIT_PLOTTING : BOOLEAN;
+
+PROCEDURE DISPLAY_HELP;
+
+BEGIN
+
+WRITELN ('MCPU XY Point Plotting Menu:');
+WRITELN;
+WRITELN ('      G : Goto a specific X or Y destination');
+WRITELN ('      M : Move by a relative X or Y distance');
+WRITELN ('      J : Jog X and Y axes with arrow keys');
+WRITELN ('      P : Plot the current XY positions into memory');
+WRITELN;
+WRITELN ('    --> : Increment X axis once forward (Right Arrow)');
+WRITELN ('    <-- : Increment X axis once reverse (Left Arrow)');
+WRITELN ('    --^ : Increment Y axis once forward (Up Arrow)');
+WRITELN ('    --v : Increment Y axis once reverse (Down Arrow)');
+WRITELN;
+WRITELN ('      I : Specify X or Y Increment per arrow key');
+WRITELN ('      Z : Zero X or Y position step count');
+WRITELN ('      K : Kill X or Y running motor axes');
+WRITELN;
+WRITELN ('      H : Help -- Display this menu');
+WRITELN ('      Q : Quit the current plotting session');
+WRITELN;
+
+END;     (* procedure DISPLAY_HELP *)
+
+(* GOTO AXIS maps a user destination into a run-able step count. *)
+
+PROCEDURE GOTO_AXIS (VAR AXMX : AXIS; VAR AXCX : COUNT_TABLE);
+
+BEGIN
+
+   GETCOUNT (AXCX);
+   AXMX.STEPCNT := DESTN - AXCX.COUNT;
+   PREPM (AXMX);
+   RUNM (AXMX);
+
+END;
+
+(* MOVE AXIS moves an axis directly by its step count. *)
+
+PROCEDURE MOVE_AXIS (VAR AXMX : AXIS);
+
+BEGIN
+
+   AXMX.STEPCNT := DIST;
+   PREPM (AXMX);
+   RUNM (AXMX);
+
+END;
+
+BEGIN   (* GO PLOT KEY *)
+
+DISPLAY_HELP;
+
+WRITE ('Point':8);
+FOR N := 1 TO MX DO
+    IF AP [N].SPEC
+       THEN WRITE ('Axis #':9, N:1);
+WRITELN;
+WRITELN;
+
+GETALL;
+WRITE ('  ':8);
+FOR N := 1 TO MX DO
+    IF AP [N].SPEC
+       THEN WRITE (AP [N].CC.COUNT:10:0);
+WRITELN;
+
+XINCR := 1;
+YINCR := 1;
+
+X_AXIS := CHR (AP [1].MM.MOTORNO);
+Y_AXIS := CHR (AP [2].MM.MOTORNO);
+
+I := STARTPT;
+QUIT_PLOTTING := FALSE;
+
+REPEAT
+
+   WRITE ('Motion Command > ');
+
+   RDCON (KEY);
+
+   CASE KEY OF
+
+    UP : BEGIN
+         WRITELN (BS,SP);
+         AP[2].MM.STEPCNT := YINCR;
+         AP[2].MM.DIR := FWD;
+         RUNM (AP[2].MM);
+         END;  (* CASE Up arrow key *)
+
+    DN : BEGIN
+         WRITELN (BS,SP);
+         AP[2].MM.STEPCNT := YINCR;
+         AP[2].MM.DIR := REV;
+         RUNM (AP[2].MM);
+         END;  (* CASE Down arrow key *)
+
+    LE : BEGIN
+         WRITELN (BS,SP);
+         AP[1].MM.STEPCNT := XINCR;
+         AP[1].MM.DIR := REV;
+         RUNM (AP[1].MM);
+         END;  (* CASE Left arrow key *)
+
+    RI : BEGIN
+         WRITELN (BS,SP);
+         AP[1].MM.STEPCNT := XINCR;
+         AP[1].MM.DIR := FWD;
+         RUNM (AP[1].MM);
+         END;  (* CASE Right arrow key *)
+
+   'K' : BEGIN
+         WRITE ('ill Axis # ');
+         RDCON (AX);
+         WRITELN;
+         CASE AX OF
+              '1' : KILLM (AP[1].MM);
+              '2' : KILLM (AP[2].MM);
+              '3' : KILLM (AP[3].MM);
+              '4' : KILLM (AP[4].MM);
+              '5' : KILLM (AP[5].MM);
+              '6' : KILLM (AP[6].MM);
+              '7' : KILLM (AP[7].MM);
+              END;
+         END;  (* CASE Kill *)
+
+   'G' : BEGIN
+         WRITE ('oto Axis # ');
+         RDCON (AX);
+         WRITE (' Destination = ');
+         RDLNREAL (DESTN);
+         CASE AX OF
+              '1' : GOTO_AXIS (AP[1].MM, AP[1].CC);
+              '2' : GOTO_AXIS (AP[2].MM, AP[2].CC);
+              '3' : GOTO_AXIS (AP[3].MM, AP[3].CC);
+              '4' : GOTO_AXIS (AP[4].MM, AP[4].CC);
+              '5' : GOTO_AXIS (AP[5].MM, AP[5].CC);
+              '6' : GOTO_AXIS (AP[6].MM, AP[6].CC);
+              '7' : GOTO_AXIS (AP[7].MM, AP[7].CC);
+              END;
+         END;  (* CASE Goto *)
+
+   'M' : BEGIN
+         WRITE ('ove Axis # ');
+         RDCON (AX);
+         WRITE (' Distance = ');
+         RDLNREAL (DIST);
+         CASE AX OF
+              '1' : MOVE_AXIS (AP[1].MM);
+              '2' : MOVE_AXIS (AP[2].MM);
+              '3' : MOVE_AXIS (AP[3].MM);
+              '4' : MOVE_AXIS (AP[4].MM);
+              '5' : MOVE_AXIS (AP[5].MM);
+              '6' : MOVE_AXIS (AP[6].MM);
+              '7' : MOVE_AXIS (AP[7].MM);
+              END;
+         END;  (* CASE Move *)
+
+   'R' : BEGIN
+         WRITE ('un Axis # ');
+         RDCON (AX);
+         WRITE (' Distance = ');
+         RDLNREAL (DIST);
+         CASE AX OF
+              '1' : MOVE_AXIS (AP[1].MM);
+              '2' : MOVE_AXIS (AP[2].MM);
+              '3' : MOVE_AXIS (AP[3].MM);
+              '4' : MOVE_AXIS (AP[4].MM);
+              '5' : MOVE_AXIS (AP[5].MM);
+              '6' : MOVE_AXIS (AP[6].MM);
+              '7' : MOVE_AXIS (AP[7].MM);
+              END;
+         END;  (* CASE Run *)
+
+   'J' : BEGIN
+         WRITELN ('og XY axes...(Press ENTER when through)');
+         OVERUN (X_AXIS, Y_AXIS);
+         WRITELN;
+         END;  (* CASE Jog *)
+
+   'I' : BEGIN
+         WRITE ('ncrement X or Y? ');
+         RDCON (AX);
+         WRITE (' # steps/key = ');
+         RDLNREAL (INCR);
+         CASE AX OF
+              'X' : XINCR := INCR;
+              'Y' : YINCR := INCR;
+              '1' : XINCR := INCR;
+              '2' : YINCR := INCR;
+              END;
+         END;  (* CASE Increment *)
+
+   'Z' : BEGIN
+         WRITE ('ero Axis # ');
+         RDCON (AX);
+         WRITELN;
+         CASE AX OF
+              '1' : ZEROM (AP[1].MM);
+              '2' : ZEROM (AP[2].MM);
+              '3' : ZEROM (AP[3].MM);
+              '4' : ZEROM (AP[4].MM);
+              '5' : ZEROM (AP[5].MM);
+              '6' : ZEROM (AP[6].MM);
+              '7' : ZEROM (AP[7].MM);
+              END;
+         END;  (* CASE Zero *)
+
+   'P' : BEGIN
+         WRITELN ('lot Point --> Memory');
+         GETALL;
+         FOR N := 1 TO MX DO
+             AP [N].PT [I] := AP [N].CC.COUNT;
+         WRITE (I:8);
+         FOR N := 1 TO MX DO
+             WRITE (AP [N].PT [I]:10:0);
+         WRITELN;
+         I := SUCC (I);
+         END;  (* CASE Plot Point *)
+
+   CR  : BEGIN
+         WRITELN;
+         GETALL;
+         WRITE ('  ':8);
+         FOR N := 1 TO MX DO
+             WRITE (AP [N].CC.COUNT:10:0);
+         WRITELN;
+         END;  (* CASE Carriage Return/Enter *)
+
+   'H' : BEGIN
+         WRITELN ('elp...');
+         WRITELN;
+         DISPLAY_HELP;
+         END;  (* CASE Help *)
+
+   '?' : BEGIN
+         WRITELN (' -- Help...');
+         WRITELN;
+         DISPLAY_HELP;
+         END;  (* CASE Help *)
+
+   'Q' : BEGIN
+         WRITELN ('uit plotting...');
+         WRITELN;
+         QUIT_PLOTTING := TRUE;
+         END;  (* CASE Quit *)
+
+   ELSE WRITELN;  (* CASE other keys... *)
+
+   END; (* CASE Key Input *)
+
+UNTIL QUIT_PLOTTING;
+
+ENDPT := PRED (I);
+
+END;     (* procedure GO_PLOT_KEY *)
+
+(* EDIT PLOT allows the user to manually edit an XY plot. *)
+
+(* OVERLAY *) PROCEDURE EDIT_PLOT;
+
+VAR I : INTEGER;
+    N : INTEGER;
+    CH : CHAR;
+    KEY : CHAR;
+    ANSWER : CHAR;
+    QUIT_EDITING : BOOLEAN;
+
+    STARTPT : INTEGER;
+    ENDPT : INTEGER;
+    DESTN : INTEGER;
+    EXTRA : INTEGER;
+
+    ADD : ARRAY [1..MX] OF REAL;
+    SCALE : ARRAY [1..MX] OF REAL;
+    INCR : ARRAY [1..MX] OF REAL;
+
+PROCEDURE DISPLAY_HELP;
+
+BEGIN
+
+WRITELN ('Manual Plot Editing Menu:');
+WRITELN;
+WRITELN ('     E : Enter initial XY points');
+WRITELN ('     C : Change existing XY points');
+WRITELN ('     I : Insert inbetween XY points');
+WRITELN ('     T : Throw away undesired XY points');
+WRITELN;
+WRITELN ('     D : Display current XY points');
+WRITELN ('     M : Move XY points around (for more)');
+WRITELN ('     O : Offset XY points by +/- amount');
+WRITELN ('     S : Scale XY points by +/- factor');
+WRITELN;
+WRITELN ('     H : Help -- display this editing menu');
+WRITELN ('     Q : Quit the current editing session');
+WRITELN;
+
+END;
+
+BEGIN     (* EDIT PLOT *)
+
+DISPLAY_HELP;
+
+QUIT_EDITING := FALSE;
+
+REPEAT
+
+   WRITE ('Editing Command > ');
+
+   RDCON (KEY);
+
+   CASE KEY OF
+
+     'D' : BEGIN
+           WRITELN ('isplay XY points...');
+           WRITELN;
+           WRITE ('Display all XY points so far? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+
+           STARTPT := 1;
+           ENDPT := XYNO;
+           IF ANSWER = 'N'
+              THEN BEGIN
+                   WRITE ('start listing at point # ');
+                   RDLNINT (STARTPT);
+                   WRITE ('end listing at point   # ');
+                   RDLNINT (ENDPT);
+                   WRITELN;
+                   END;
+
+           WRITE ('Point':8);
+           FOR N := 1 TO MX DO
+               IF AP [N].SPEC
+                  THEN WRITE ('Axis #':9, N:1);
+           WRITELN;
+           WRITELN;
+
+           FOR I := STARTPT TO ENDPT DO
+               BEGIN
+               WRITE (I:8);
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN WRITE (AP [N].PT [I]:10:0);
+               WRITELN;
+               END;
+           WRITELN;
+           END;     (* CASE Listing *)
+
+     'E' : BEGIN
+           WRITELN ('nter points...');
+           WRITELN;
+           STARTPT := XYNO;
+           ENDPT := XYNO + 1;
+           WRITE ('enter points starting at # ');
+           RDLNINT (STARTPT);
+           WRITE ('up to points ending at   # ');
+           RDLNINT (ENDPT);
+           WRITELN;
+
+           FOR I := STARTPT TO ENDPT DO
+               BEGIN
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN BEGIN
+                           AP [N].PT [I] := AP [N].PT [I-1];
+                           WRITE ('at point # ', I:4, '   Axis #', N:1, ' = ');
+                           RDLNREAL (AP [N].PT [I]);
+                           END;
+               WRITELN;
+               END;
+           IF XYNO < ENDPT
+              THEN XYNO := ENDPT;
+           END;  (* CASE Enter *)
+
+     'C' : BEGIN
+           WRITELN ('hange points...');
+           WRITELN;
+           STARTPT := 1;
+           ENDPT := XYNO;
+           WRITE ('change points starting at # ');
+           RDLNINT (STARTPT);
+           WRITE ('up to points ending at pt # ');
+           RDLNINT (ENDPT);
+           WRITELN;
+
+           FOR I := STARTPT TO ENDPT DO
+               BEGIN
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN BEGIN
+                           WRITE ('at point # ', I:4, '   change Axis #', N:1, ' = ', AP [N].PT [I]:10:0, ' --> ');
+                           RDLNREAL (AP [N].PT [I]);
+                           END;
+               WRITELN;
+               END;  (* FOR changing points *)
+           IF XYNO < ENDPT
+              THEN XYNO := ENDPT;
+           END;  (* CASE Change *)
+
+     'I' : BEGIN
+           WRITELN ('nsert points inbetween...');
+           WRITELN;
+           EXTRA := 1;
+           STARTPT := XYNO;
+           WRITE ('# of new points to insert = ');
+           RDLNINT (EXTRA);
+           WRITE ('insert points starting at # ');
+           RDLNINT (STARTPT);
+           WRITELN;
+
+           FOR I := XYNO DOWNTO STARTPT DO
+               FOR N := 1 TO MX DO
+                   AP [N].PT [I+EXTRA] := AP [N].PT [I];
+           ENDPT := STARTPT + EXTRA - 1;
+
+           WRITE ('Automatically compute increments? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+
+           IF ANSWER = 'N' THEN BEGIN
+
+           FOR I := STARTPT TO ENDPT DO
+               BEGIN
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN BEGIN
+                           AP [N].PT [I] := AP [N].PT [I-1];
+                           WRITE ('at new point # ', I:4, '   Axis # ', N:1, ' = ');
+                           RDLNREAL (AP [N].PT [I]);
+                           END;
+               WRITELN;
+               END;
+
+           END    (* THEN manual inbetween *)
+
+           ELSE BEGIN
+
+           FOR N := 1 TO MX DO
+               INCR [N] := (AP [N].PT [ENDPT+1] - AP [N].PT [STARTPT-1]) / (EXTRA+1);
+
+           FOR I := STARTPT TO ENDPT DO
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN AP [N].PT [I] := AP [N].PT [I-1] + INCR [N];
+
+           END;   (* ELSE auto inbetween *)
+
+           XYNO := XYNO + EXTRA;
+           END;  (* CASE Insert *)
+
+     'T' : BEGIN
+           WRITELN ('hrow away points...');
+           WRITELN;
+           STARTPT := XYNO;
+           ENDPT := XYNO;
+           WRITE ('remove points starting at # ');
+           RDLNINT (STARTPT);
+           WRITE ('up to points ending at pt # ');
+           RDLNINT (ENDPT);
+           WRITELN;
+
+           IF ENDPT > XYNO
+              THEN ENDPT := XYNO;
+           EXTRA := ENDPT - STARTPT + 1;
+           FOR I := STARTPT TO (XYNO - EXTRA) DO
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN AP [N].PT [I] := AP [N].PT [I+EXTRA];
+           XYNO := XYNO - EXTRA;
+           WRITELN ('Removal completed');
+           WRITELN;
+           END;  (* CASE Remove *)
+
+     'M' : BEGIN
+           WRITELN ('ove points around...');
+           WRITELN;
+           STARTPT := 1;
+           ENDPT := XYNO;
+           DESTN := XYNO + 1;
+           WRITE ('move points starting at # ');
+           RDLNINT (STARTPT);
+           WRITE ('up to points ending at  # ');
+           RDLNINT (ENDPT);
+           WRITE ('into destination at pt  # ');
+           RDLNINT (DESTN);
+           WRITELN;
+
+           IF ENDPT < STARTPT
+              THEN FOR I := STARTPT DOWNTO ENDPT DO
+                       BEGIN
+                       FOR N := 1 TO MX DO
+                           IF AP [N].SPEC
+                              THEN AP [N].PT [DESTN] := AP [N].PT [I];
+                       DESTN := SUCC (DESTN);
+                       END
+              ELSE FOR I := STARTPT TO ENDPT DO
+                       BEGIN
+                       FOR N := 1 TO MX DO
+                           IF AP [N].SPEC
+                              THEN AP [N].PT [DESTN] := AP [N].PT [I];
+                       DESTN := SUCC (DESTN);
+                       END;
+           IF DESTN > XYNO
+              THEN XYNO := PRED (DESTN);
+           WRITELN ('Move completed');
+           WRITELN;
+           END;  (* CASE Move *)
+
+     'O' : BEGIN
+           WRITELN ('ffset existing points...');
+           WRITELN;
+           STARTPT := 1;
+           ENDPT := XYNO;
+           WRITE ('add offset to points starting at # ');
+           RDLNINT (STARTPT);
+           WRITE ('up to and including points at pt # ');
+           RDLNINT (ENDPT);
+           WRITELN;
+
+           FOR N := 1 TO MX DO
+               IF AP [N].SPEC
+                  THEN BEGIN
+                       ADD [N] := 0.0;
+                       WRITE ('+/- Axis #', N:1, ' offset = ');
+                       RDLNREAL (ADD [N]);
+                       END;
+           WRITELN;
+
+           FOR I := STARTPT TO ENDPT DO
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN AP [N].PT [I] := AP [N].PT [I] + ADD [N];
+
+           WRITELN ('Offset completed');
+           WRITELN;
+           END;  (* CASE Offset *)
+
+     'S' : BEGIN
+           WRITELN ('cale existing points...');
+           WRITELN;
+           STARTPT := 1;
+           ENDPT := XYNO;
+           WRITE ('scale points starting at  # ');
+           RDLNINT (STARTPT);
+           WRITE ('up to and including at pt # ');
+           RDLNINT (ENDPT);
+           WRITELN;
+
+           FOR N := 1 TO MX DO
+               IF AP [N].SPEC
+                  THEN BEGIN
+                       SCALE [N] := 1.0;
+                       WRITE ('+/- Axis #', N:1, ' factor = ');
+                       RDLNREAL (SCALE [N]);
+                       END;
+           WRITELN;
+
+           FOR I := STARTPT TO ENDPT DO
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN AP [N].PT [I] := AP [N].PT [I] * SCALE [N];
+
+           WRITELN ('Scaling completed');
+           WRITELN;
+           END;  (* CASE Scaling *)
+
+     'H' : BEGIN
+           WRITELN ('elp...');
+           WRITELN;
+           DISPLAY_HELP;
+           END;  (* CASE Help *)
+
+     '?' : BEGIN
+           WRITELN (' -- Help...');
+           WRITELN;
+           DISPLAY_HELP;
+           END;  (* CASE Help *)
+
+     'Q' : BEGIN
+           WRITELN ('uit Editing...');
+           WRITELN;
+           QUIT_EDITING := TRUE;
+           END;  (* CASE Quit *)
+
+     ELSE WRITELN;
+
+     END;     (* CASE key input *)
+
+UNTIL QUIT_EDITING;
+
+END;     (* procedure EDIT PLOT *)
+
+(* SAVE_PLOT saves the set of plotted XY points onto a disk file. *)
+
+PROCEDURE SAVE_PLOT;
+
+VAR I : INTEGER;
+    N : INTEGER;
+    POINTS : REAL;
+
+    XYNAME : STRING [14];
+    XYPLOT : FILE OF REAL;
+
+    NAME_OK : BOOLEAN;
+    SAVE_OK : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+REPEAT
+
+   WRITE ('Save XY file name: ');
+   READLN (XYNAME);
+   WRITELN;
+
+   WRITELN ('Proceeding to save XY plot...');
+   ASSIGN (XYPLOT, XYNAME);
+   {$I-}
+   REWRITE (XYPLOT);
+   {$I+}
+
+   IF IORESULT = 0
+      THEN SAVE_OK := TRUE
+      ELSE BEGIN
+           SAVE_OK := FALSE;
+           WRITE ('File Saving Error -- Try again? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN NAME_OK := FALSE
+              ELSE NAME_OK := TRUE;
+           END;
+
+UNTIL NAME_OK OR SAVE_OK;
+
+IF SAVE_OK
+   THEN BEGIN
+
+   POINTS := XYNO;
+   WRITE (XYPLOT, POINTS);
+
+   FOR I := 1 TO XYNO DO
+       FOR N := 1 TO MX DO
+           WRITE (XYPLOT, AP [N].PT [I]);
+
+   CLOSE (XYPLOT);
+   WRITELN ('File saving completed');
+   WRITELN;
+
+   END;  (* IF File Saving ok *)
+
+END;     (* procedure SAVE_PLOT *)
+
+(* LOAD_PLOT loads a previously saved XY plot
+(* from disk into memory for processing. *)
+
+PROCEDURE LOAD_PLOT;
+
+VAR I : INTEGER;
+    N : INTEGER;
+    POINTS : REAL;
+
+    XYNAME : STRING [14];
+    XYPLOT : FILE OF REAL;
+
+    LOAD_OK : BOOLEAN;
+    NAME_OK : BOOLEAN;
+    ANSWER : CHAR;
+
+BEGIN
+
+REPEAT
+
+   WRITE ('Load XY file name: ');
+   READLN (XYNAME);
+   WRITELN;
+
+   WRITELN ('Proceeding to load XY plot...');
+   ASSIGN (XYPLOT, XYNAME);
+   {$I-}
+   RESET (XYPLOT);
+   {$I+}
+
+   IF IORESULT = 0
+      THEN LOAD_OK := TRUE
+      ELSE BEGIN
+           LOAD_OK := FALSE;
+           WRITE ('File Not Found -- Try again? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN NAME_OK := FALSE
+              ELSE NAME_OK := TRUE;
+           END;
+
+UNTIL LOAD_OK OR NAME_OK;
+
+IF LOAD_OK
+   THEN BEGIN
+
+   READ (XYPLOT, POINTS);
+   XYNO := TRUNC (POINTS);
+
+   FOR I := 1 TO XYNO DO
+       FOR N := 1 TO MX DO
+           READ (XYPLOT, AP [N].PT [I]);
+
+   CLOSE (XYPLOT);
+   WRITELN ('File loading completed');
+   WRITELN;
+
+   END;       (* IF loading ok *)
+
+END;      (* CASE procedure LOAD_PLOT *)
+
+(* OUT_PLOT outputs the loaded XY plot
+(* as a sequence of XY curve segements to the MCPU. *)
+
+PROCEDURE OUT_PLOT;
+
+VAR I : INTEGER;
+    KEY : CHAR;
+    BYTE : CHAR;
+    ANSWER : CHAR;
+    CHECK : BOOLEAN;
+
+BEGIN
+
+WRITELN ('Outputting XY plot to MCPU...');
+WRITELN;
+
+WRITE ('Point':8);
+FOR N := 1 TO MX DO
+    IF AP [N].SPEC
+       THEN WRITE ('Axis #':9, N:1);
+WRITELN;
+WRITELN;
+
+GETALL;
+WRITE ('  ':8);
+FOR N := 1 TO MX DO
+    IF AP [N].SPEC
+       THEN WRITE (AP [N].CC.COUNT:10:0);
+WRITELN;
+
+I := STARTPT;
+REVERSE := (ENDPT < STARTPT);
+SEQUENCE_OVER := FALSE;
+
+REPEAT
+
+   FOR N := 1 TO MX DO
+       IF AP [N].SPEC
+          THEN BEGIN
+               AP[N].MM.STEPCNT := AP[N].PT [I] - AP[N].CC.COUNT;
+               PREPM (AP [N].MM);
+               END;
+
+   RUNALL;
+   WAITBACK;
+
+   GETALL;
+   CHECK := FALSE;
+   FOR N := 1 TO MX DO
+       IF AP [N].SPEC
+          THEN CHECK := CHECK OR (AP [N].CC.COUNT <> AP [N].PT [I]);
+   IF CHECK
+      THEN GETALL;
+
+   WRITE (I:8);
+   FOR N := 1 TO MX DO
+       IF AP [N].SPEC
+          THEN WRITE (AP [N].CC.COUNT:10:0);
+
+   IF SEQUENCED
+      THEN WRITELN
+      ELSE BEGIN
+           CLRKEY;
+           IF REMOTE
+              THEN REMOTE_TRIGGER (KEY)
+              ELSE RDKEY (KEY);
+           WRITELN;
+           IF KEY = 'Q'
+              THEN CLEAR_SEQUENCE;
+           END;
+
+   IF I = ENDPT
+      THEN SEQUENCE_OVER := TRUE;
+
+   IF NOT SEQUENCE_OVER
+      THEN IF EXPOSURE
+           THEN BEGIN
+                EXPOSEIT;
+                WAITOVER;
+                IF FADE
+                   THEN FADEIT;
+                IF E.M.DIR = REV
+                   THEN TOTAL_COUNT := TOTAL_COUNT - FRAME_STEP
+                   ELSE TOTAL_COUNT := TOTAL_COUNT + FRAME_STEP;
+                END;
+
+   IF REVERSE
+      THEN I := PRED (I)
+      ELSE I := SUCC (I);
+
+UNTIL SEQUENCE_OVER;
+
+WRITELN;
+WRITELN ('XY outputting completed');
+WRITELN;
+
+END;     (* procedure OUT_PLOT *)
+
+(* SPECIFY MISC inputs miscellaneous MCPU functions. *)
+
+PROCEDURE SPEC_MISC;
+
+VAR CMD : CHAR;
+    ANSWER : CHAR;
+    SELECTION : BOOLEAN;
+    SEQUENCE_STAT : STRING [10];
+    EXPOSURE_STAT : STRING [10];
+
+BEGIN
+
+IF EXPOSURE
+   THEN EXPOSURE_STAT := 'ON'
+   ELSE EXPOSURE_STAT := 'OFF';
+
+IF SEQUENCED
+   THEN SEQUENCE_STAT := 'AUTO'
+   ELSE SEQUENCE_STAT := 'MAN';
+
+WRITELN ('Miscellaneous MCPU Functions:');
+WRITELN;
+WRITELN ('   T : Time Delay Between Moves          |', SEQUENCE_TIME:10:3);
+WRITELN ('   S : Sequencing Automatic/Manual       |', SEQUENCE_STAT:10);
+WRITELN ('   C : Camera Exposures at Plot Points   |', EXPOSURE_STAT:10);
+WRITELN ('   A : Assign Active Axis Selections');
+WRITELN ('   O : Overide any/all MCPU Motor Axes');
+WRITELN ('   Q : Quit Miscellaneous Selections');
+WRITELN;
+
+SELECTION := FALSE;
+
+REPEAT
+
+   RDCON (CMD);
+
+   CASE CMD OF
+
+        'T' : BEGIN
+              WRITE ('ime Delay = ');
+              RDLNREAL (SEQUENCE_TIME);
+              MCPU_DELAY := ROUND (SEQUENCE_TIME * 1000);
+              END;
+
+        'S' : BEGIN
+              WRITE ('equencing...Manual or Automatic? (M/A) ');
+              RDCON (ANSWER);
+              WRITELN;
+              CASE ANSWER OF
+                   'M' : SEQUENCED := FALSE;
+                   'A' : SEQUENCED := TRUE;
+                   'S' : SEQUENCED := NOT SEQUENCED;
+                   END;
+
+              IF NOT SEQUENCED
+                 THEN BEGIN
+                      WRITE ('Remote triggering? (Y/N) ');
+                      RDCON (ANSWER);
+                      WRITELN;
+                      IF ANSWER = 'Y'
+                         THEN REMOTE := TRUE
+                         ELSE REMOTE := FALSE;
+                      END;
+
+              IF SEQUENCED
+                 THEN WRITELN ('Axis Movements Sequenced by ANIMAL...')
+                 ELSE WRITELN ('Axis Movements Single-Stepped by User...');
+              END;
+
+        'C' : BEGIN
+              WRITE ('amera Exposures at Plot Points? (Y/N) ');
+              RDCON (ANSWER);
+              WRITELN;
+              CASE ANSWER OF
+                   'Y' : EXPOSURE := TRUE;
+                   'N' : EXPOSURE := FALSE;
+                   'C' : EXPOSURE := NOT EXPOSURE;
+                   CR  : EXPOSURE := TRUE;
+                   END;
+              END;
+
+        'E' : BEGIN
+              WRITE ('xposures at Plot Points? (Y/N) ');
+              RDCON (ANSWER);
+              WRITELN;
+              CASE ANSWER OF
+                   'Y' : EXPOSURE := TRUE;
+                   'N' : EXPOSURE := FALSE;
+                   'E' : EXPOSURE := NOT EXPOSURE;
+                   CR  : EXPOSURE := TRUE;
+                   END;
+              END;
+
+        'A' : BEGIN
+              WRITELN ('ctive Axis Assignments:');
+              WRITELN;
+              FOR N := 1 TO MX DO
+                  BEGIN
+                  WRITE ('Axis #', N:1, ' Active? ');
+                  RDCON (ANSWER);
+                  AP [N].SPEC := (ANSWER = 'Y');
+                  IF AP [N].SPEC
+                     THEN BEGIN
+                     WRITE (' Assign Axis #', N:1, ' to be your ANIMAL Axis: ');
+                     RDCON (ID [1]);
+                     RDCON (ID [2]);
+                     CASE_AXIS (ID, OK, AX);
+                     IF OK
+                        THEN BEGIN
+                        AP [N].MM := AX.M;
+                        AP [N].CC := AX.C;
+                        END;
+                     END;
+                  WRITELN;
+                  END;
+              WRITELN;
+              END;
+
+        'O' : BEGIN
+              WRITELN ('veride...');
+              WRITELN;
+              OVERIDE;
+              WRITELN;
+              SELECTION := TRUE;
+              END;
+
+        'Q' : BEGIN
+              WRITELN ('uit Miscellaneous Selections');
+              WRITELN;
+              SELECTION := TRUE;
+              END;
+
+        CR  : BEGIN
+              WRITELN;
+              SELECTION := TRUE;
+              END;
+
+        ELSE  WRITELN;
+
+        END;
+
+UNTIL SELECTION;
+
+END;
+
+(* SPECIFY_CAMERA allows the user to specify the camera parameters. *)
+
+PROCEDURE SPEC_CAMERA;
+
+VAR CH : CHAR;
+    ANSWER : CHAR;
+    SELECTION : BOOLEAN;
+    SHUTTER_STAT : STRING [10];
+    DIRECTION_STAT : STRING [10];
+
+BEGIN
+
+   IF ROTOSCOPING
+      THEN SHUTTER_STAT := 'OPEN'
+      ELSE SHUTTER_STAT := 'CLOSED';
+
+   IF E.M.DIR = REV
+      THEN DIRECTION_STAT := 'REV'
+      ELSE DIRECTION_STAT := 'FWD';
+
+   WRITELN ('Camera Selection Menu:');
+   WRITELN;
+   WRITELN ('   E : Exposure Time Interval            |', EXPOSURE_TIME:10:2);
+   WRITELN ('   N : Number of Exposures per Move      |', FRAME_STEP:10);
+   WRITELN ('   T : Total Net Frame Count             |', TOTAL_COUNT:10);
+   WRITELN ('   S : Shutter Open/Closed               |', SHUTTER_STAT:10);
+   WRITELN ('   D : Direction Forward/Reverse         |', DIRECTION_STAT:10);
+   WRITELN ('   V : Variable Shutter Angle            |', SHUTTER_ANGLE:10:1);
+   WRITELN ('   F : Fade In/Out Sequence');
+   WRITELN ('   A : Advance Only Overide');
+   WRITELN ('   C : Camera Exposure Overide');
+   WRITELN ('   Q : Quit Camera Selections');
+   WRITELN;
+
+   SELECTION := FALSE;
+
+   REPEAT
+
+      RDCON (CH);
+
+      CASE CH OF
+
+           'C' : BEGIN
+                 WRITE ('amera Count = ');
+                 RDLNINT (FRAME_COUNT);
+                 IF FRAME_COUNT < 0
+                    THEN E.M.DIR := REV
+                    ELSE E.M.DIR := FWD;
+                 E.M.STEPCNT := ABS (FRAME_COUNT);
+                 RUNM (E.M);
+                 END;
+
+           'A' : BEGIN
+                 WRITE ('dvance Count = ');
+                 RDLNINT (FRAME_COUNT);
+                 IF FRAME_COUNT < 0
+                    THEN A.M.DIR := REV
+                    ELSE A.M.DIR := FWD;
+                 A.M.STEPCNT := ABS (FRAME_COUNT);
+                 RUNM (A.M);
+                 END;
+
+           'E' : BEGIN
+                 WRITE ('xposure Time = ');
+                 RDLNREAL (EXPOSURE_TIME);
+
+                 E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
+                 E.M.ACCELST := FALSE;
+                 INITM (E.M);
+                 END;
+
+           'S' : BEGIN
+                 WRITE ('hutter...');
+                 HOMEM (E.M);
+                 ROTOSCOPING := NOT ROTOSCOPING;
+                 IF ROTOSCOPING
+                    THEN WRITELN ('Open')
+                    ELSE WRITELN ('Closed');
+                 END;
+
+           'F' : BEGIN
+                 WRITE ('ade Length Frame Count = ');
+                 RDLNINT (FADE_LENGTH);
+                 FADE := TRUE;
+
+                 WRITE ('Maximum Fade Exposure Time = ');
+                 RDLNREAL (EXPOSURE_TIME);
+                 WRITELN;
+
+                 WRITE ('Fade In or Out? (I/O) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 IF ANSWER = 'I'
+                    THEN FADEIN := TRUE
+                    ELSE FADEIN := FALSE;
+
+                 WRITE ('Linear or Logarithmic? (L/G) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 WRITELN;
+                 IF ANSWER = 'G'
+                    THEN FADELOG := TRUE
+                    ELSE FADELOG := FALSE;
+
+                 IF FADELOG
+                    THEN BEGIN
+                         WRITE ('Number of f/stops to Fade = ');
+                         RDLNREAL (NSTOPS);
+                         WRITE ('Logarithmic Fade Taper  % = ');
+                         RDLNREAL (FADE_TAPER);
+                         TAPERED_FADE := (FADE_TAPER > 0.0);
+
+                         WRITE ('Sine or Linear Taper? (S/L) ');
+                         RDCON (ANSWER);
+                         WRITELN;
+                         WRITELN;
+                         TAPERED_SINE := (ANSWER = 'S');
+                         END;
+
+                 PRE_COMPUTE_FADE;
+                 END;
+
+           'V' : BEGIN
+                 WRITE ('ariable Shutter Angle = ');
+                 RDLNREAL (SHUTTER_ANGLE);
+                 VARIABLE_SHUTTER (SHUTTER_ANGLE);
+                 END;
+
+           'N' : BEGIN
+                 WRITE ('umber of Exposures per Interval = ');
+                 RDLNINT (FRAME_STEP);
+                 IF FRAME_STEP < 1
+                    THEN FRAME_STEP := 1;
+                 END;
+
+           'T' : BEGIN
+                 WRITE ('otal Count = ');
+                 RDLNINT (TOTAL_COUNT);
+                 END;
+
+           'D' : BEGIN
+                 WRITE ('irection? (F/R) ');
+                 RDCON (ANSWER);
+                 WRITELN;
+                 IF ANSWER = 'R'
+                    THEN E.M.DIR := REV
+                    ELSE E.M.DIR := FWD;
+                 END;
+
+           'Q' : BEGIN
+                 WRITELN ('uit Camera Selections');
+                 WRITELN;
+                 SELECTION := TRUE;
+                 END;
+
+           CR  : BEGIN
+                 WRITELN;
+                 SELECTION := TRUE;
+                 END;
+
+           ELSE  WRITELN;
+
+           END; (* CASE selection *)
+
+   UNTIL SELECTION;
+
+END;      (* procedure SPEC_CAMERA *)
+
+(* MAIN_PLOT enters, modifies, and runs through the XY plot
+(* until Abdalla is pleased with it. (infinite loop...) *)
+
+PROCEDURE MAIN_PLOT;
+
+VAR I : INTEGER;
+    KEY : CHAR;
+    ANSWER : CHAR;
+    MODIFICATION_OK : BOOLEAN;
+
+PROCEDURE DISPLAY_HELP;
+
+BEGIN
+
+WRITELN ('Master Point Plotting and Editing Menu:');
+WRITELN;
+WRITELN ('     P : Plot a set of XY input points');
+WRITELN ('     R : Run through a set of logged XY points');
+WRITELN ('     D : Display currently entered XY points');
+WRITELN ('     E : Edit a set of XY points manually');
+WRITELN;
+WRITELN ('     S : Save XY points onto disk file');
+WRITELN ('     L : Load XY points from disk file');
+WRITELN ('     F : File Directory listing of disk');
+WRITELN;
+WRITELN ('     C : Camera Exposure Functions');
+WRITELN ('     M : Miscellaneous Plotter Functions');
+WRITELN ('     O : Overide MCPU Axis Functions');
+WRITELN ('     H : Help -- Display this menu');
+WRITELN ('     Q : Quit point plotting program');
+WRITELN;
+
+END;     (* procedure DISPLAY_HELP *)
+
+BEGIN
+
+FOR N := 1 TO MX DO
+    AP [N].PT [1] := 0.0;
+
+DISPLAY_HELP;
+
+MODIFICATION_OK := FALSE;
+
+REPEAT
+
+   WRITE ('Plot Command > ');
+
+   RDCON (KEY);
+
+   CASE KEY OF
+
+     'D' : BEGIN
+           WRITELN ('isplay plot...');
+           WRITELN;
+           WRITE ('Display all points so far? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+
+           STARTPT := 1;
+           ENDPT := XYNO;
+           IF ANSWER = 'N'
+              THEN BEGIN
+                   WRITE ('start listing at point # ');
+                   RDLNINT (STARTPT);
+                   WRITE ('end listing at point   # ');
+                   RDLNINT (ENDPT);
+                   WRITELN;
+                   END;
+
+           WRITE ('Point':8);
+           FOR N := 1 TO MX DO
+               IF AP [N].SPEC
+                  THEN WRITE ('Axis #':9, N:1);
+           WRITELN;
+           WRITELN;
+           FOR I := STARTPT TO ENDPT DO
+               BEGIN
+               WRITE (I:8);
+               FOR N := 1 TO MX DO
+                   IF AP [N].SPEC
+                      THEN WRITE (AP [N].PT [I]:10:0);
+               WRITELN;
+               END;
+           WRITELN;
+           END;     (* CASE Display *)
+
+     'P' : BEGIN
+           WRITELN ('lotting time...');
+           WRITELN;
+           IF XYNO > 1
+              THEN BEGIN
+                   STARTPT := XYNO + 1;
+                   WRITE ('start re-plotting at point # ');
+                   RDLNINT (STARTPT);
+                   WRITELN;
+                   END;
+
+           WRITE ('Plot points with Switch-box or Keyboard? (S/K) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           IF ANSWER = 'K'
+              THEN GO_PLOT_KEY
+              ELSE GO_PLOT_BOX;
+           IF XYNO < ENDPT
+              THEN XYNO := ENDPT;
+           END;  (* CASE Plot *)
+
+     'R' : BEGIN
+           WRITELN ('un through plot...');
+           WRITELN;
+           WRITE ('Run through all points so far? (Y/N) ');
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+
+           STARTPT := 1;
+           ENDPT := XYNO;
+           IF ANSWER = 'N'
+              THEN BEGIN
+                   WRITE ('start running at point # ');
+                   RDLNINT (STARTPT);
+                   WRITE ('end running at point   # ');
+                   RDLNINT (ENDPT);
+                   WRITELN;
+                   END;
+           OUT_PLOT;
+           END;  (* CASE run through *)
+
+     'E' : BEGIN
+           WRITELN ('dit plot...');
+           WRITELN;
+           EDIT_PLOT;
+           END;  (* CASE Edit *)
+
+     'S' : BEGIN
+           WRITELN ('ave plot...');
+           WRITELN;
+           SAVE_PLOT;
+           END;  (* CASE Save *)
+
+     'L' : BEGIN
+           WRITELN ('oad plot...');
+           WRITELN;
+           LOAD_PLOT;
+           END;  (* CASE Load *)
+
+     'F' : BEGIN
+           WRITELN ('ile Directory Listing...');
+           WRITELN;
+           FILE_DIRECTORY;
+           END;
+
+     'C' : BEGIN
+           WRITELN ('amera functions...');
+           WRITELN;
+           SPEC_CAMERA;
+           END;  (* CASE Camera *)
+
+     'M' : BEGIN
+           WRITELN ('iscellaneous...');
+           WRITELN;
+           SPEC_MISC;
+           END;  (* CASE Misc *)
+
+     'O' : BEGIN
+           WRITELN ('veride...');
+           WRITELN;
+           OVERIDE;
+           WRITELN;
+           END;  (* CASE Overide *)
+
+     'H' : BEGIN
+           WRITELN ('elp!!!');
+           WRITELN;
+           DISPLAY_HELP;
+           END;  (* CASE Help *)
+
+     '?' : BEGIN
+           WRITELN (' -- Help!!!');
+           WRITELN;
+           DISPLAY_HELP;
+           END;  (* CASE Help *)
+
+     'Q' : BEGIN
+           WRITELN ('uitting time...');
+           WRITELN;
+           WRITELN ('Make sure you have saved all desired data points');
+           WRITELN ('onto disk, otherwise all will be lost for good!');
+           WRITELN;
+           WRITE ('Are you really ready to quit plotting now? (Y/N) ');
+           CLRKEY;
+           RDCON (ANSWER);
+           WRITELN;
+           WRITELN;
+           IF ANSWER = 'Y'
+              THEN MODIFICATION_OK := TRUE;
+           END;  (* CASE Quit *)
+
+     ELSE WRITELN;
+
+     END;     (* CASE key input *)
+
+UNTIL MODIFICATION_OK;
+
+END;     (* procedure MAIN_PLOT *)
+
+BEGIN    (* procedure AXIS_PLOT *)
+
+   CLRSCRN;
+   WRITELN ('XY Plot Generation');
+   WRITELN;
+
+   WRITELN ('This master point plotting program allows you to:');
+   WRITELN ('    Plot points with the MCPU by position');
+   WRITELN ('    Edit points manually by number');
+   WRITELN ('    Save and Load plots with disk files');
+   WRITELN ('in virtually any order and as often as necessary.');
+   WRITELN;
+
+   WRITELN ('Please note that from now on you will have to ');
+   WRITELN ('refer to your selected set of axes as ''Axis #1'' to ''Axis #7'',');
+   WRITELN ('and that all selected axis values are based on steps only.');
+   WRITELN;
+
+   AP [1].MM := PN.M;
+   AP [1].CC := PN.C;
+
+   AP [2].MM := TL.M;
+   AP [2].CC := TL.C;
+
+   AP [3].MM := BM.M;
+   AP [3].CC := BM.C;
+
+   AP [4].MM := HT.M;
+   AP [4].CC := HT.C;
+
+   AP [5].MM := TR.M;
+   AP [5].CC := TR.C;
+
+   AP [6].MM := RT.M;
+   AP [6].CC := RT.C;
+
+   AP [7].MM := FF.M;
+   AP [7].CC := FF.C;
+
+   FOR N := 1 TO MX DO
+       AP [N].SPEC := TRUE;
+
+   STARTPT := 1;
+   ENDPT := 1;
+   XYNO := ENDPT;
+
+   MAIN_PLOT;
+
+END;      (* procedure AXIS_PLOT *)
+

@@ -1,0 +1,148 @@
+(* CLEAR_SEQUENCE clears the currently running sequence. *)
+
+PROCEDURE CLEAR_SEQUENCE;
+
+BEGIN
+
+   SEQUENCE_OVER := TRUE;
+
+END;
+
+(* NMIOVER jams in an overiding NMI interrupt into the MCPU. *)
+
+PROCEDURE NMIOVER;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      OUTCMD ('Z');      (* Hey... *)
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';     (* Ready? *)
+
+   OUTCMD ('W');         (* Wake Up *)
+
+   OUTCMD ('?');         (* What the Fuck? *)
+
+   OUTCMD ('N');         (* NMI, Damnit! *)
+
+   OUTCMD ('Z');         (* Zzzzz *)
+
+END;
+
+(* WAITBACK is the same as WAITOVER
+(* except that the OVERHEAR command is already in progress. *)
+
+PROCEDURE WAITBACK;
+
+CONST NUL = #0;
+
+VAR BYTE : CHAR;
+    CMD : CHAR;
+    SIOSTAT : BOOLEAN;
+    KEYSTAT : BOOLEAN;
+
+BEGIN
+
+   DELAY (MCPU_DELAY DIV 10 + 1);
+
+   BYTE := NUL;
+   CMD := NUL;
+
+   REPEAT
+
+      REPEAT
+         INSIOST (SIOSTAT);
+         RDKEYST (KEYSTAT);
+      UNTIL SIOSTAT OR KEYSTAT;
+
+      IF SIOSTAT
+         THEN INSIO (BYTE);
+
+      IF KEYSTAT
+         THEN BEGIN
+              WRITELN;
+              WRITE ('Quit running sequence? (Y/N) ');
+              RDCON (CMD);
+              WRITELN;
+              WRITELN;
+              IF CMD = 'Y'
+                 THEN CMD := 'Q';
+
+              NMIOVER;
+              IF CMD <> 'Q'
+                 THEN OVERHEAR;
+              END;
+
+   UNTIL (BYTE = 'R') OR (CMD = 'Q');
+
+   IF BYTE = 'R'
+      THEN OUTCMD ('Z');
+
+   IF CMD = 'Q'
+      THEN CLEAR_SEQUENCE;
+
+   DELAY (MCPU_DELAY);
+
+END;
+
+(* WAITOVER monitors both MCPU serial status and ANIMAL user console status. *)
+(* Waits for either MCPU Ready or ANIMAL User Quit. *)
+
+PROCEDURE WAITOVER;
+
+BEGIN
+
+   DELAY (MCPU_DELAY DIV 10 + 1);
+   OVERHEAR;
+   WAITBACK;
+
+END;
+
+(* REMOTE TRIGGER alternately waits for an answer from the remote switch-box
+(* or from the console. This is used for single-stepping through moves. *)
+
+PROCEDURE REMOTE_TRIGGER (VAR CMD : CHAR);
+
+VAR BYTE : CHAR;
+    KEYST : BOOLEAN;
+    SIOST : BOOLEAN;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';
+
+   OUTCMD ('W');
+
+   OUTCMD ('P');
+
+   OUTCMD ('L');
+
+   REPEAT
+      INSIOST (SIOST);
+      RDKEYST (KEYST);
+   UNTIL (SIOST) OR (KEYST);
+
+   IF SIOST
+      THEN BEGIN
+           INSIO (BYTE);
+           DELAY (50);
+           CMD := ' ';
+           END;
+
+   IF KEYST
+      THEN BEGIN
+           RDKEY (CMD);
+           OUTCMD ('Q');
+           INSIO (BYTE);
+           DELAY (50);
+           END;
+
+   OUTCMD ('Z');
+
+END;   (* procedure REMOTE TRIGGER *)
+
+

@@ -1,0 +1,343 @@
+
+(* INIT LOAD initializes and loads all of the one-time ANIMAL info. *)
+
+PROCEDURE INIT_LOAD;
+
+(* INITIALIZE MCPU finds out if the MCPU is ready for communications
+(* with the host desktop computer. *)
+
+PROCEDURE INIT_MCPU;
+
+VAR BYTE : CHAR;
+    CH : CHAR;
+
+BEGIN
+
+   OUTCMD ('Z');
+   INSIO (BYTE);
+   IF BYTE <> 'R'
+      THEN REPEAT
+              WRITELN ('MCPU Not Ready Yet');
+              WRITELN ('--Either Reset MCPU');
+              WRITE   ('--Or Abort Program Here (^C) > ');
+              READ (TRM, CH);
+              WRITELN;
+              WRITELN;
+              OUTCMD ('Z');
+              INSIO (BYTE);
+           UNTIL BYTE = 'R';
+   OUTCMD ('Z');
+   WRITELN ('MCPU Ready...');
+   WRITELN;
+
+END;   (* procedure INIT_MCPU *)
+
+(* ASSIGN AXES assigns the logical ANIMAL axes to the physical MCPU axes. *)
+
+PROCEDURE ASSIGN_AXES;
+
+BEGIN
+
+   E.M.MOTORNO := 31;
+   A.M.MOTORNO := 32;
+
+   PN.M.MOTORNO := 17;
+   TL.M.MOTORNO := 19;
+   BM.M.MOTORNO := 27;
+   HT.M.MOTORNO :=  7;
+   TR.M.MOTORNO := 29;
+   RT.M.MOTORNO := 21;
+
+   LP.M.MOTORNO :=  9;
+   GR.M.MOTORNO := 11;
+   RL.M.MOTORNO := 13;
+   LV.M.MOTORNO := 23;
+   FF.M.MOTORNO :=  1;
+   ZM.M.MOTORNO :=  3;
+
+   XA.M.MOTORNO :=  2;
+   XB.M.MOTORNO :=  4;
+   XC.M.MOTORNO :=  6;
+   XD.M.MOTORNO :=  8;
+   XE.M.MOTORNO := 10;
+   XF.M.MOTORNO := 12;
+   XG.M.MOTORNO := 14;
+
+END;   (* procedure ASSIGN AXES *)
+
+(* NAME AXES names the ANIMAL axes with unique 2-letter ID labels. *)
+
+PROCEDURE NAME_AXES;
+
+BEGIN
+
+PN.ID := 'PN';
+TL.ID := 'TL';
+BM.ID := 'BM';
+HT.ID := 'HT';
+TR.ID := 'TR';
+RT.ID := 'RT';
+LP.ID := 'LP';
+GR.ID := 'GR';
+RL.ID := 'RL';
+LV.ID := 'LV';
+FF.ID := 'FF';
+ZM.ID := 'ZM';
+XA.ID := 'XA';
+XB.ID := 'XB';
+XC.ID := 'XC';
+XD.ID := 'XD';
+XE.ID := 'XE';
+XF.ID := 'XF';
+XG.ID := 'XG';
+
+END;
+
+(* INITIALIZE QUICK assigns constant speeds to all motors (for starters).*)
+
+PROCEDURE INIT_QUICK (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   A.R.ACCEL := FALSE;
+   A.R.MAX_SPEED := 250;
+   A.R.MIN_LOWSPD  := 250;
+   A.R.MAX_HIGHSPD := 250;
+   A.R.MAX_RAMPCNT := 1;
+
+END;
+
+(* INITIALIZE MOTOR transfers the running speed profiles to the motors.*)
+
+PROCEDURE INIT_MOTOR (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   A.M.ACCELST := A.R.ACCEL;
+   A.M.SPEED   := A.R.MAX_SPEED;
+   A.M.LOWSPD  := A.R.MIN_LOWSPD;
+   A.M.HIGHSPD := A.R.MAX_HIGHSPD;
+   A.M.RAMPCNT := A.R.MAX_RAMPCNT;
+   A.M.RAMPK   := 0;
+
+END;
+
+(* INITIALIZE HOME sets the Home parameters (for starters).*)
+
+PROCEDURE INIT_HOME (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   A.H.DIR := REV;
+   A.H.HOMECNT := 0;
+
+END;
+
+(* INITIALIZE STEP checks if an ANIMAL axis exists in the MCPU environment. *)
+
+PROCEDURE INIT_STEP (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   GETSTAT (A.C);
+   IF A.C.ERROR
+      THEN WRITELN ('ERROR on ANIMAL Axis ', A.ID, ' = MCPU Axis # ', A.C.AXISNO);
+
+END;
+
+(* INITIALIZE STEP STATUS pre-checks all ANIMAL MCPU axes
+(* so as to get the MCPU axis status bytes set properly. *)
+
+PROCEDURE INIT_STEP_STAT;
+
+BEGIN
+
+   WRITELN ('Testing ANIMAL''s MCPU Axes...');
+
+   FOR I := 1 TO MAX_AXES DO
+       INIT_STEP (AA [I]);
+
+   WRITELN ('All MCPU Axes Tested');
+   WRITELN;
+   WAIT_A_SECOND;
+
+END;
+
+(* INITIALIZE ALL QUICK quickly initializes all ANIMAL axis speeds to
+(* the same default values. *)
+
+PROCEDURE INIT_ALL_QUICK;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       INIT_QUICK (AA [I]);
+
+END;
+
+(* INITIALIZE ALL MOTOR transfers all optimum ANIMAL axis speeds
+(* from the run profile records to the motor records. *)
+
+PROCEDURE INIT_ALL_MOTOR;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       INIT_MOTOR (AA [I]);
+
+END;
+
+(* DEFAULT SPEEDS attempts to load a default speed file from disk. *)
+
+PROCEDURE DEFAULT_SPEEDS;
+
+VAR SPEEDNAME : STRING [14];
+    SPEEDFILE : FILE OF RUN_PROFILE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   SPEEDNAME := 'ANIMAL.SPD';
+   ASSIGN (SPEEDFILE, SPEEDNAME);
+   {$I-}
+   RESET (SPEEDFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.SPD for Default Speeds...')
+      ELSE WRITELN ('Data File ANIMAL.SPD Not Found -- Preset Speeds Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               READ (SPEEDFILE, AA[I].R);
+
+           CLOSE (SPEEDFILE);
+           END;  (* IF loading ok *)
+
+END;
+
+(* DEFAULT UNITS attempts to load a default user units file from disk. *)
+
+PROCEDURE DEFAULT_UNITS;
+
+VAR UNITSNAME : STRING [14];
+    UNITSFILE : FILE OF CONVERSION_TABLE;
+    LOAD_OK : BOOLEAN;
+
+BEGIN
+
+   UNITSNAME := 'ANIMAL.UNT';
+   ASSIGN (UNITSFILE, UNITSNAME);
+   {$I-}
+   RESET (UNITSFILE);
+   {$I+}
+
+   LOAD_OK := (IORESULT = 0);
+
+   IF LOAD_OK
+      THEN WRITELN ('Loading Data File ANIMAL.UNT for Default Units...')
+      ELSE WRITELN ('Data File ANIMAL.UNT Not Found -- Preset Units Used');
+
+   IF LOAD_OK
+      THEN BEGIN
+           FOR I := 1 TO MAX_AXES DO
+               READ (UNITSFILE, AA[I].K);
+
+           CLOSE (UNITSFILE);
+           END;  (* IF loading ok *)
+
+END;
+
+(* INITIALIZE STUFF initializes all ANIMAL variables and stuff...*)
+
+PROCEDURE INIT_STUFF;
+
+BEGIN
+
+FRAME_COUNT := 0;
+EXPOSURE_TIME := STD_EXP_TIME;
+
+EXPOSURE := FALSE;
+FRAME_STEP := 1;
+INCRCNT := 1;
+
+TOTAL_COUNT := 0;
+PRESET_COUNT := 0;
+
+LAPSE_TIME := STD_LAPSE_TIME;
+FRAME_TIME := STD_FRAME_TIME;
+TOTAL_TIME := STD_FRAME_TIME;
+
+SEQUENCE_TIME := 1.000;
+MCPU_DELAY := 1000;
+SEQUENCED := TRUE;
+REMOTE := FALSE;
+DISPLAY := TRUE;
+REVERSE := FALSE;
+
+STOPMOTION := FALSE;
+LIVEACTION := FALSE;
+GOMOTION := FALSE;
+
+FADE := FALSE;
+ADVANCEONLY := FALSE;
+ROTOSCOPING := FALSE;
+
+FOLLOW_FOCUS := FALSE;
+FOCAL_LENGTH := 50.0;
+FOCUS_REF := 1000.0;
+ZERO_FOCUS := 52.786;
+
+E.M.ACCELST := FALSE;
+E.M.SPEED := 0;
+E.M.DIR := FWD;
+
+A.M.ACCELST := FALSE;
+A.M.SPEED := 0;
+A.M.DIR := FWD;
+
+FOR I := 1 TO MAX_AXES DO
+    AA [I].SPEC := FALSE;
+
+FOR I := 1 TO MAX_AXES DO
+    AA [I].C.AXISNO := AA [I].M.MOTORNO;
+
+FOR I := 1 TO MAX_AXES DO
+    AA [I].K.KSCALE := 1.0;
+
+FOR I := 1 TO MAX_AXES DO
+    AA [I].K.UNITS := 'Steps';
+
+END;   (* procedure INIT STUFF *)
+
+BEGIN   (* INIT LOAD *)
+
+   INIT_MCPU;
+
+   ASSIGN_AXES;
+
+   NAME_AXES;
+
+   PUT_AXIS_ARRAY;
+
+   INIT_STUFF;
+
+   INIT_STEP_STAT;
+
+   INIT_ALL_QUICK;
+
+   INIT_ALL_MOTOR;
+
+   DEFAULT_SPEEDS;
+
+   DEFAULT_UNITS;
+   WRITELN;
+
+   INIT_AXES;
+
+END;
+
+

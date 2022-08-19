@@ -1,0 +1,140 @@
+
+(* PRE-COMPUTE FADE pre-computes the exposure time and shutter angle data
+(* for either the desired fade-in or fade-out sequence, and initializes
+(* the variable shutter position accordingly. *)
+
+PROCEDURE PRE_COMPUTE_FADE;
+
+VAR STEPS : REAL;
+
+BEGIN
+
+   MAX_EXP := EXPOSURE_TIME;
+   MIN_EXP := STD_EXP_TIME;
+
+   EXP_INCR := MAX_EXP / FADE_LENGTH;
+   EXP_COUNT := ROUND ((MAX_EXP - MIN_EXP) / EXP_INCR);
+   MIN_EXP := MAX_EXP - (EXP_COUNT * EXP_INCR);
+
+   SHTR_COUNT := FADE_LENGTH - EXP_COUNT;
+   SHTR_INCR := MAX_ANGLE / SHTR_COUNT;
+
+   IF FADEIN
+      THEN BEGIN
+           FADE_EXP := FALSE;
+           FADE_SHTR := TRUE;
+
+           EXPOSURE_TIME := STD_EXP_TIME;
+           SHUTTER_ANGLE := 0.0;
+
+           CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
+           GETCOUNT (XA.C);
+           XA.M.STEPCNT := STEPS - XA.C.COUNT;
+           PREPM (XA.M);
+           RUNM (XA.M);
+           WRITELN ('Closing Variable Shutter...');
+           WRITELN;
+           END         (* Fade In *)
+
+      ELSE BEGIN
+           FADE_EXP := TRUE;
+           FADE_SHTR := FALSE;
+
+           EXPOSURE_TIME := MAX_EXP;
+           SHUTTER_ANGLE := MAX_ANGLE;
+
+           CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
+           GETCOUNT (XA.C);
+           XA.M.STEPCNT := STEPS - XA.C.COUNT;
+           PREPM (XA.M);
+           RUNM (XA.M);
+           WRITELN ('Opening Variable Shutter...');
+           WRITELN;
+           END;        (* Fade Out *)
+
+END;
+
+(* FADE IT runs through the fade-in or fade-out sequence, incrementing
+(* either the exposure time or shutter angle according to frame number. *)
+
+PROCEDURE FADEIT;
+
+VAR STEPS : REAL;
+
+BEGIN
+
+   IF FADEIN
+      THEN BEGIN
+           IF FADE_SHTR
+              THEN BEGIN
+                   SHUTTER_ANGLE := SHUTTER_ANGLE + SHTR_INCR;
+                   IF SHUTTER_ANGLE > MAX_ANGLE
+                      THEN BEGIN
+                           SHUTTER_ANGLE := MAX_ANGLE;
+                           EXPOSURE_TIME := MIN_EXP;
+                           FADE_SHTR := FALSE;
+                           FADE_EXP := TRUE;
+                           END;
+                   CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
+                   GETCOUNT (XA.C);
+                   XA.M.STEPCNT := STEPS - XA.C.COUNT;
+                   PREPM (XA.M);
+                   RUNM (XA.M);
+                   WRITELN ('Fading In Variable Shutter...');
+                   WRITELN;
+                   WAITOVER;
+                   END;     (* Fade In Shutter *)
+
+           IF FADE_EXP
+              THEN BEGIN
+                   EXPOSURE_TIME := EXPOSURE_TIME + EXP_INCR;
+                   IF EXPOSURE_TIME > MAX_EXP
+                      THEN BEGIN
+                           EXPOSURE_TIME := MAX_EXP;
+                           FADE_EXP := FALSE;
+                           FADE := FALSE;
+                           END;
+                   END;    (* Fade In Exposure *)
+
+           END     (* IF Fade In *)
+
+      ELSE BEGIN
+           IF FADE_EXP
+              THEN BEGIN
+                   EXPOSURE_TIME := EXPOSURE_TIME - EXP_INCR;
+                   IF EXPOSURE_TIME < MIN_EXP
+                      THEN BEGIN
+                           EXPOSURE_TIME := STD_EXP_TIME;
+                           FADE_EXP := FALSE;
+                           FADE_SHTR := TRUE;
+                           END;
+                    END;   (* Fade Out Exposure *)
+
+            IF FADE_SHTR
+               THEN BEGIN
+                    SHUTTER_ANGLE := SHUTTER_ANGLE - SHTR_INCR;
+                    IF SHUTTER_ANGLE < 0.0
+                       THEN BEGIN
+                            SHUTTER_ANGLE := 0.0;
+                            FADE_SHTR := FALSE;
+                            FADE := FALSE;
+                            END;
+                    CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
+                    GETCOUNT (XA.C);
+                    XA.M.STEPCNT := STEPS - XA.C.COUNT;
+                    PREPM (XA.M);
+                    RUNM (XA.M);
+                    WRITELN ('Fading Out Variable Shutter...');
+                    WRITELN;
+                    WAITOVER;
+                    END;     (* Fade Out Shutter *)
+
+            END;    (* ELSE Fade Out *)
+
+   WRITELN ('Exposure Time = ', EXPOSURE_TIME:5:2);
+   WRITELN ('Shutter Angle = ', SHUTTER_ANGLE:5:2);
+   WRITELN;
+
+END;
+
+

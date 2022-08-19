@@ -1,0 +1,562 @@
+
+(* GO ANIMAL contains the main programmed options for running
+(* stop motion, go motion, and live action animation sequences. *)
+
+(* 07-22-86 *)
+
+(* OVERLAY *) PROCEDURE GO_ANIMAL;
+
+VAR QUITTING_TIME : BOOLEAN;
+
+(* PRE-COMPUTE pre-computes the first incremental step count
+(* for the first frame. *)
+
+PROCEDURE PRE_COMPUTE (VAR A : AXIS_TABLE);
+
+VAR AXIS_INCR : INTEGER;
+    AXIS_FRAME : INTEGER;
+    AREA : REAL;
+
+BEGIN
+
+   IF LIVEACTION
+      THEN BEGIN
+           A.P.START_FRAME := 0;
+           A.P.END_FRAME := PRESET_COUNT;
+           END;
+
+   AXIS_FRAME := A.P.END_FRAME - A.P.START_FRAME;
+   AXIS_INCR := AXIS_FRAME DIV FRAME_STEP;
+   IF AXIS_INCR =  0
+      THEN A.P.INCR_PT := 0.0
+      ELSE A.P.INCR_PT := (A.P.END_PT - A.P.START_PT) / (AXIS_INCR);
+   CONVERT (A.P.INCR_PT, A.K.KSCALE, A.X.INCR_STP);
+
+   IF A.P.TAPER
+      THEN BEGIN
+           A.X.FRAME_COUNT := A.P.END_FRAME - A.P.START_FRAME;
+           A.X.ACCEL_FRAME := ROUND (A.P.ACCEL * A.X.FRAME_COUNT / 100);
+           A.X.DECEL_FRAME := ROUND (A.P.DECEL * A.X.FRAME_COUNT / 100);
+           A.X.KONST_FRAME := A.X.FRAME_COUNT - (A.X.ACCEL_FRAME + A.X.DECEL_FRAME);
+           AREA := (0.5 * A.P.ACCEL + A.P.KONST + 0.5 * A.P.DECEL) / 100;
+           A.X.INCR_MAX := A.P.INCR_PT / AREA;
+           IF A.X.ACCEL_FRAME = 0
+              THEN A.P.INCR_PT := A.X.INCR_MAX
+              ELSE A.P.INCR_PT := (1 / A.X.ACCEL_FRAME) * A.X.INCR_MAX;
+           CONVERT (A.P.INCR_PT, A.K.KSCALE, A.X.INCR_STP);
+           END;
+
+   A.M.STEPCNT := A.X.INCR_STP;
+   PREPM (A.M);
+
+   A.P.CUR_PT := A.P.START_PT;
+   CONVERT (A.P.CUR_PT, A.K.KSCALE, A.X.CUR_STP);
+
+END;
+
+(* COMPUTE computes the current incremental step count for the current frame. *)
+
+PROCEDURE COMPUTE (VAR A : AXIS_TABLE);
+
+VAR INCR_REMAINING : INTEGER;
+    AXIS_FRAME_COUNT : INTEGER;
+
+(* COMPUTE TAPER computes the current tapered increment.*)
+
+PROCEDURE COMPUTE_TAPER;
+
+VAR TAPER_COUNT : INTEGER;
+    TAPER_FRAME : INTEGER;
+    EFF_INCR_PT : REAL;
+    EFF_END_PT : REAL;
+    EFF_INCR_REMAINING : INTEGER;
+
+BEGIN
+
+IF AXIS_FRAME_COUNT > (A.X.FRAME_COUNT - A.X.ACCEL_FRAME)
+   THEN BEGIN
+        TAPER_COUNT := AXIS_FRAME_COUNT - (A.X.FRAME_COUNT - A.X.ACCEL_FRAME);
+        TAPER_FRAME := A.X.ACCEL_FRAME - TAPER_COUNT;
+        IF A.X.ACCEL_FRAME = 0
+           THEN A.P.INCR_PT := A.X.INCR_MAX
+           ELSE A.P.INCR_PT := (TAPER_FRAME / A.X.ACCEL_FRAME) * A.X.INCR_MAX;
+        END   (* accel taper in *)
+
+ELSE IF AXIS_FRAME_COUNT < A.X.DECEL_FRAME
+   THEN BEGIN
+        TAPER_FRAME := AXIS_FRAME_COUNT;
+        IF A.X.DECEL_FRAME = 0
+           THEN A.P.INCR_PT := A.X.INCR_MAX
+           ELSE A.P.INCR_PT := (TAPER_FRAME / A.X.DECEL_FRAME) * A.X.INCR_MAX;
+        END   (* decel taper out *)
+
+{ELSE A.P.INCR_PT := A.X.INCR_MAX;}
+
+ELSE BEGIN
+     EFF_END_PT := A.P.END_PT - (0.5 * A.X.DECEL_FRAME * A.X.INCR_MAX);
+     TAPER_COUNT := AXIS_FRAME_COUNT - A.X.DECEL_FRAME;
+     EFF_INCR_REMAINING := TAPER_COUNT DIV FRAME_STEP;
+     IF EFF_INCR_REMAINING = 0
+        THEN EFF_INCR_PT := A.X.INCR_MAX
+        ELSE EFF_INCR_PT := (EFF_END_PT - A.P.CUR_PT) / EFF_INCR_REMAINING;
+     A.P.INCR_PT := EFF_INCR_PT;
+     END;   (* constant incrementation *)
+
+END;
+
+BEGIN
+
+A.P.CUR_PT := A.K.CUR_POSN;
+
+IF (FRAME_COUNT < A.P.START_FRAME)
+OR (FRAME_COUNT > A.P.END_FRAME)
+   THEN A.P.INCR_PT := 0
+   ELSE BEGIN
+        AXIS_FRAME_COUNT := A.P.END_FRAME - FRAME_COUNT;
+        INCR_REMAINING := AXIS_FRAME_COUNT DIV FRAME_STEP;
+        IF INCR_REMAINING = 0
+           THEN A.P.INCR_PT := 0
+           ELSE BEGIN
+                IF A.P.TAPER
+                   THEN COMPUTE_TAPER
+                   ELSE A.P.INCR_PT := (A.P.END_PT - A.P.CUR_PT) / INCR_REMAINING;
+                END;
+        END;
+
+{CONVERT (A.P.INCR_PT, A.K.KSCALE, A.X.INCR_STP);}
+{A.M.STEPCNT := A.X.INCR_STP;}
+
+A.P.CUR_PT := A.P.CUR_PT + A.P.INCR_PT;
+CONVERT (A.P.CUR_PT, A.K.KSCALE, A.X.CUR_STP);
+
+A.M.STEPCNT := A.X.CUR_STP - A.K.CUR_STEP;
+PREPM (A.M);
+
+END;
+
+(* PRE-COMPUTE_STREAK pre-computes the first streak step count
+(* for the first frame. *)
+
+PROCEDURE PRE_COMPUTE_STREAK (VAR A : AXIS_TABLE);
+
+VAR AXIS_INCR : INTEGER;
+    AXIS_FRAME : INTEGER;
+
+BEGIN
+
+IF A.P.STREAK
+   THEN BEGIN
+        AXIS_FRAME := A.P.END_FRAME - A.P.START_FRAME;
+        AXIS_INCR := AXIS_FRAME DIV FRAME_STEP;
+        IF AXIS_INCR =  0
+           THEN A.P.DELTA_SIZE := 0.0
+           ELSE A.P.DELTA_SIZE := (A.P.FINAL_SIZE - A.P.INITL_SIZE) / (AXIS_INCR);
+        CONVERT (A.P.DELTA_SIZE, A.K.KSCALE, A.X.DELTA_CNT);
+
+        A.P.CUR_SIZE := A.P.INITL_SIZE;
+        CONVERT (A.P.CUR_SIZE, A.K.KSCALE, A.X.CUR_CNT);
+        END
+
+   ELSE A.X.CUR_CNT := 0;
+
+A.M.STEPCNT := A.X.CUR_CNT;
+PREPM (A.M);
+
+END;
+
+(* COMPUTE_STREAK computes the current streak step count for the current frame. *)
+
+PROCEDURE COMPUTE_STREAK (VAR A : AXIS_TABLE);
+
+VAR INCR_REMAINING : INTEGER;
+    AXIS_FRAME_COUNT : INTEGER;
+
+BEGIN
+
+IF A.P.STREAK
+   THEN BEGIN
+        IF (FRAME_COUNT < A.P.START_FRAME)
+        OR (FRAME_COUNT > A.P.END_FRAME)
+           THEN A.X.CUR_CNT := 0
+
+           ELSE BEGIN
+                AXIS_FRAME_COUNT := A.P.END_FRAME - FRAME_COUNT;
+                INCR_REMAINING := AXIS_FRAME_COUNT DIV FRAME_STEP;
+                IF INCR_REMAINING = 0
+                   THEN BEGIN
+                        A.P.DELTA_SIZE := 0;
+                        A.P.CUR_SIZE := 0;
+                        END
+                   ELSE BEGIN
+                        A.P.DELTA_SIZE := (A.P.FINAL_SIZE - A.P.CUR_SIZE) / INCR_REMAINING;
+                        A.P.CUR_SIZE := A.P.CUR_SIZE + A.P.DELTA_SIZE;
+                        END;
+               CONVERT (A.P.DELTA_SIZE, A.K.KSCALE, A.X.DELTA_CNT);
+               CONVERT (A.P.CUR_SIZE, A.K.KSCALE, A.X.CUR_CNT);
+               END
+        END
+
+   ELSE A.X.CUR_CNT := 0;
+
+A.M.STEPCNT := A.X.CUR_CNT;
+PREPM (A.M);
+
+END;
+
+(* PRE-TRANSFER SEGMENT transfers the first segment of a multi-segment move.*)
+
+PROCEDURE PRE_TRANSFER_SEGMENT (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   IF A.P.MULTI
+      THEN A.P := A.I [1];
+
+END;
+
+(* TRANSFER SEGMENT transfers a multi-segmernt move for execution. *)
+
+PROCEDURE TRANSFER_SEGMENT (VAR A : AXIS_TABLE);
+
+VAR S : INTEGER;
+
+BEGIN
+
+   IF A.P.MULTI
+      THEN IF FRAME_COUNT >= A.P.END_FRAME
+           THEN BEGIN
+                S := A.P.SEGMENT;
+                IF S < A.P.TOTAL
+                   THEN A.P := A.I [S+1];
+                PRE_COMPUTE (A);
+                END;
+
+END;
+
+(* PRE-COMPUTE EM ALL pre-computes all available ANIMAL MCPU axis increments. *)
+
+PROCEDURE PRE_COMPUTE_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN PRE_COMPUTE (AA [I]);
+
+END;
+
+(* COMPUTE EM ALL computes all available ANIMAL MCPU axis increments. *)
+
+PROCEDURE COMPUTE_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN COMPUTE (AA [I]);
+
+END;
+
+(* PRE-COMPUTE STREAK EM ALL pre-computes all available ANIMAL MCPU axis streaks. *)
+
+PROCEDURE PRE_COMPUTE_STREAK_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN PRE_COMPUTE_STREAK (AA [I]);
+
+END;
+
+(* COMPUTE STREAK EM ALL computes all available ANIMAL MCPU axis streaks. *)
+
+PROCEDURE COMPUTE_STREAK_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN COMPUTE_STREAK (AA [I]);
+
+END;
+
+(* PRE-TRANSFER SEGMENT ALL transfers the first segment moves for all axes. *)
+
+PROCEDURE PRE_TRANSFER_SEGMENT_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.MULTI
+                  THEN PRE_TRANSFER_SEGMENT (AA [I]);
+
+END;
+
+(* TRANSFER SEGMENT ALL transfers any multi-segment moves for all axes. *)
+
+PROCEDURE TRANSFER_SEGMENT_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.MULTI
+                  THEN TRANSFER_SEGMENT (AA [I]);
+
+END;
+
+(* FINAL STREAK pre-computes the final streak size for each axis. *)
+
+PROCEDURE FINAL_STREAK (VAR A : AXIS_TABLE);
+
+BEGIN
+
+IF A.P.STREAK
+   THEN BEGIN
+        CONVERT (A.P.FINAL_SIZE, A.K.KSCALE, A.X.FINAL_CNT);
+        A.M.STEPCNT := ABS (A.X.FINAL_CNT);
+        END
+
+   ELSE A.M.STEPCNT := 0;
+
+END;
+
+(* FINAL STREAK EM ALL computes all available ANIMAL MCPU axis final steaks.*)
+
+PROCEDURE FINAL_STREAK_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN FINAL_STREAK (AA [I]);
+
+END;
+
+(* REVERSE EM ALL reverses directions of all available ANIMAL MCPU axes.*)
+
+PROCEDURE REVERSE_EM_ALL;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.STREAK
+                  THEN AA [I].M.DIR := NOT AA [I].M.DIR;
+
+END;
+
+(* INITIALIZE EM ALL initializes all available ANIMAL MCPU axes. *)
+
+PROCEDURE INIT_EM_ALL;
+
+VAR BYTE : CHAR;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';                  (* Ready ? *)
+
+   OUTCMD ('W');                      (* Wake Up...*)
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN INITX (AA [I].M);      (* Initialize block...*)
+
+   OUTCMD ('O');                      (* Overhear *)
+
+   OUTCMD ('Z');                      (* Zzzzz *)
+
+END;
+
+(* 'FAST_SPEEDS' resets all specified MCPU motor speeds back to their
+(* maximum default values for fastest motor operations. *)
+
+PROCEDURE FAST_SPEEDS;
+
+(* 'SPEED_OUT' resets a single MCPU motor to its max default speed. *)
+
+PROCEDURE SPEED_OUT (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   IF A.R.ACCEL
+      THEN BEGIN
+           A.M.ACCELST := TRUE;
+           A.M.LOWSPD  := A.R.MIN_LOWSPD;
+           A.M.HIGHSPD := A.R.MAX_HIGHSPD;
+           A.M.RAMPCNT := A.R.MAX_RAMPCNT;
+           END
+      ELSE BEGIN
+           A.M.ACCELST := FALSE;
+           A.M.SPEED := A.R.MAX_SPEED;
+           END;
+
+END;
+
+BEGIN
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN SPEED_OUT (AA [I]);
+
+END;
+
+(* MATCH_LIVE_ACTION_AXES goes through all specified Live-Action axes to be run
+(* and matches all their run-time speeds (if possible), so that
+(* all running axes will start and end at (roughly) the same time. *)
+
+PROCEDURE MATCH_LIVE_ACTION_AXES (VAR MATCH : BOOLEAN);
+
+(* MATCH_REAL_TIME matches up the speeds for each specified real-time axis. *)
+
+PROCEDURE MATCH_REAL_TIME (VAR A : AXIS_TABLE);
+
+VAR SPEED : INTEGER;
+    TIME : REAL;
+    DISTANCE : REAL;
+    STEPS : REAL;
+    FRAMES : INTEGER;
+
+BEGIN
+
+IF A.R.ACCEL
+   THEN SPEED := A.R.MAX_HIGHSPD
+   ELSE SPEED := A.R.MAX_SPEED;
+
+IF SPEED < ROUND (A.M.STEPCNT / TOTAL_TIME)
+
+   THEN BEGIN
+        STEPS := (SPEED * TOTAL_TIME);
+        RECONVERT (STEPS, A.K.KSCALE, DISTANCE);
+        TIME := A.M.STEPCNT / SPEED;
+        FRAMES := ROUND (TIME / FRAME_TIME);
+
+        WRITELN ('ERROR -- running too fast for ', A.ID, ' axis');
+        WRITELN ('Either shorten ', A.ID, ' axis travel: ',DISTANCE:6:1,' ',A.K.UNITS);
+        WRITELN ('Or else lengthen overall Frame Count: ', FRAMES, ' Frames');
+        WRITELN;
+        MATCH := FALSE;
+        END  (* IF real-time speed not possible *)
+
+   ELSE BEGIN
+        IF A.R.ACCEL
+           THEN BEGIN
+                A.M.HIGHSPD := ROUND (A.M.STEPCNT / TOTAL_TIME);
+                IF A.M.HIGHSPD < A.R.MIN_LOWSPD
+                   THEN BEGIN
+                        A.M.ACCELST := FALSE;
+                        A.M.SPEED := A.M.HIGHSPD;
+                        END
+                   ELSE BEGIN
+                        A.M.ACCELST := TRUE;
+                        A.M.LOWSPD := A.R.MIN_LOWSPD;
+                        A.M.RAMPCNT := ROUND ((A.M.HIGHSPD / A.R.MAX_HIGHSPD) * A.R.MAX_RAMPCNT);
+                        END;
+                END  (* IF accelearated speed possible *)
+
+           ELSE BEGIN
+                A.M.ACCELST := FALSE;
+                A.M.SPEED := ROUND (A.M.STEPCNT / TOTAL_TIME);
+                END; (* IF constant speed possible *)
+
+        END; (* IF real-time speed is possible *)
+
+END;
+
+BEGIN
+
+   MATCH := TRUE;
+
+   IF EXPOSURE_TIME < STD_EXP_TIME
+      THEN FRAME_TIME := STD_EXP_TIME + LAPSE_TIME
+      ELSE FRAME_TIME := EXPOSURE_TIME + LAPSE_TIME;
+   TOTAL_TIME := FRAME_COUNT * FRAME_TIME;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN MATCH_REAL_TIME (AA [I]);
+
+END;
+
+(* MATCH_GO_MOTION_AXES goes through all specified Go-Motion axes to be run
+(* and matches all their run-time streaking speeds (if possible), so that
+(* all streaking axes will start and end at (roughly) the same time. *)
+
+PROCEDURE MATCH_GO_MOTION_AXES (VAR MATCH : BOOLEAN);
+
+VAR STREAK_TIME : REAL;
+
+(* MATCH_STREAK matches up the speeds for each specified streaking axis. *)
+
+PROCEDURE MATCH_STREAK (VAR A : AXIS_TABLE);
+
+VAR SPEED : INTEGER;
+    TIME : REAL;
+    DISTANCE : REAL;
+    STEPS : REAL;
+
+BEGIN
+
+IF A.R.ACCEL
+   THEN SPEED := A.R.MAX_HIGHSPD
+   ELSE SPEED := A.R.MAX_SPEED;
+
+IF SPEED < ROUND (A.M.STEPCNT / STREAK_TIME)
+
+   THEN BEGIN
+        STEPS := (SPEED * STREAK_TIME);
+        RECONVERT (STEPS, A.K.KSCALE, DISTANCE);
+        TIME := A.M.STEPCNT / SPEED;
+
+        WRITELN ('ERROR -- streaking too fast for ', A.ID, ' axis');
+        WRITELN ('Either shorten ', A.ID, ' axis travel: ',DISTANCE:6:1,' ',A.K.UNITS);
+        WRITELN ('Or else lengthen overall Exposure Time: ', TIME:6:2, ' Seconds');
+        WRITELN;
+        MATCH := FALSE;
+        END (* IF streaking not possible *)
+
+   ELSE BEGIN
+        IF A.R.ACCEL
+           THEN BEGIN
+                A.M.HIGHSPD := ROUND (A.M.STEPCNT / STREAK_TIME);
+                IF A.M.HIGHSPD < A.R.MIN_LOWSPD
+                   THEN BEGIN
+                        A.M.ACCELST := FALSE;
+                        A.M.SPEED := A.M.HIGHSPD;
+                        END
+                   ELSE BEGIN
+                        A.M.ACCELST := TRUE;
+                        A.M.LOWSPD := A.R.MIN_LOWSPD;
+                        A.M.RAMPCNT := ROUND((A.M.HIGHSPD / A.R.MAX_HIGHSPD) * A.R.MAX_RAMPCNT);
+                        END;
+                END (* IF accelerated speed possible *)
+
+           ELSE BEGIN
+                A.M.ACCELST := FALSE;
+                A.M.SPEED := ROUND (A.M.STEPCNT / STREAK_TIME);
+                END; (* IF constant speed possible *)
+
+        END; (* IF streaking speed is possible *)
+
+END;
+
+BEGIN
+
+   IF EXPOSURE_TIME < STD_EXP_TIME
+      THEN STREAK_TIME := STD_EXP_TIME
+      ELSE STREAK_TIME := EXPOSURE_TIME;
+
+   MATCH := TRUE;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN IF AA [I].P.STREAK
+                  THEN MATCH_STREAK (AA [I]);
+
+END;
+
+

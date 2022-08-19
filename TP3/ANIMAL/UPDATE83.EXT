@@ -1,0 +1,174 @@
+
+(* INQUIRE EM ALL gets the full MCPU axis status and postion report. *)
+
+PROCEDURE INQUIRE_EM_ALL;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';     (* Ready ? *)
+
+   OUTCMD ('W');         (* Wake-up *)
+
+   FOR I := 1 TO MAX_AXES DO
+       STATX (AA [I].C);         (* Inquiry... *)
+
+   OUTCMD ('Z');        (* Zzzzz *)
+
+END;
+
+(* INQUIRE SOME gets only the currently selected axes' status report. *)
+
+PROCEDURE INQUIRE_SOME;
+
+BEGIN
+
+   REPEAT
+      INSIO (BYTE);
+   UNTIL BYTE = 'R';     (* Ready ? *)
+
+   OUTCMD ('W');         (* Wake-up *)
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN STATX (AA [I].C);          (* Inquiry... *)
+
+   OUTCMD ('Z');        (* Zzzzz *)
+
+END;
+
+(* CONVERT FOLLOW FOCUS computes the Follow Focus conversion for FF. *)
+
+PROCEDURE CONVERT_FOLLOW_FOCUS (VAR Z : REAL; VAR L : REAL);
+
+VAR I : REAL;
+    I_REF : REAL;
+    K : REAL;
+    F : REAL;
+
+BEGIN
+
+   I_REF := ZERO_FOCUS;
+   K := FF.K.KSCALE;
+   F := FOCAL_LENGTH;
+
+   IF Z < 4 * F
+      THEN I := 2 * F
+      ELSE I := (Z - SQRT (SQR (Z) - 4 * Z * F)) / 2;
+
+   L := -1.0 * K * (I - I_REF);
+
+END;
+
+(* CONVERT converts user defined units into steps. *)
+
+PROCEDURE CONVERT (VAR X : REAL; K : REAL; VAR Y : REAL);
+
+VAR T : REAL;
+
+BEGIN
+
+   IF FOLLOW_FOCUS AND (K = FF.K.KSCALE)
+      THEN CONVERT_FOLLOW_FOCUS (X, Y)
+      ELSE Y := X / K;
+
+END;
+
+(* RECONVERT FOLLOW FOCUS reconverts FF. *)
+
+PROCEDURE RECONVERT_FOLLOW_FOCUS (VAR L : REAL; VAR Z : REAL);
+
+VAR I : REAL;
+    d_I : REAL;
+    I_REF : REAL;
+    K : REAL;
+    F : REAL;
+
+BEGIN
+
+   I_REF := ZERO_FOCUS;
+   K := FF.K.KSCALE;
+   F := FOCAL_LENGTH;
+
+   d_I := -1.0 * L / K;
+   I := d_I + I_REF;
+
+   Z := I + (F * I) / (I - F);
+
+END;
+
+(* RECONVERT reconverts steps into user-defined units. *)
+
+PROCEDURE RECONVERT (VAR X : REAL; K : REAL; VAR Y : REAL);
+
+BEGIN
+
+   IF FOLLOW_FOCUS AND (K = FF.K.KSCALE)
+      THEN RECONVERT_FOLLOW_FOCUS (X, Y)
+      ELSE Y := K * X;
+
+END;
+
+(* UPDATE updates the current MCPU axis step count into the
+(* corresponding ANIMAL parameter. *)
+
+PROCEDURE UPDATE (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   A.K.CUR_STEP := A.C.COUNT;
+   RECONVERT (A.K.CUR_STEP, A.K.KSCALE, A.K.CUR_POSN);
+
+END;
+
+(* DOUBLE CHECK UPDATE updates the current MCPU axis step count into the
+(* corresponding ANIMAL parameter with double-checking for errors. *)
+(* If updated step count doesn't match computed step count
+(* then axis status is fetched again to be sure. *)
+
+PROCEDURE DOUBLE_CHECK_UPDATE (VAR A : AXIS_TABLE);
+
+BEGIN
+
+   IF A.M.DIR = FWD
+      THEN IF A.C.COUNT <> A.K.CUR_STEP + A.M.STEPCNT
+              THEN GETCOUNT (A.C);
+
+   IF A.M.DIR = REV
+      THEN IF A.C.COUNT <> A.K.CUR_STEP - A.M.STEPCNT
+              THEN GETCOUNT (A.C);
+
+   A.K.CUR_STEP := A.C.COUNT;
+   RECONVERT (A.K.CUR_STEP, A.K.KSCALE, A.K.CUR_POSN);
+
+END;
+
+(* UPDATE_EM_ALL updates all validly existing MCPU axes. *)
+
+PROCEDURE UPDATE_EM_ALL;
+
+BEGIN
+
+   INQUIRE_EM_ALL;
+
+   FOR I := 1 TO MAX_AXES DO
+       UPDATE (AA [I]);
+
+END;
+
+(* UPDATE SOME only updates the cureently selected axes. *)
+
+PROCEDURE UPDATE_SOME;
+
+BEGIN
+
+   INQUIRE_SOME;
+
+   FOR I := 1 TO MAX_AXES DO
+       IF AA [I].SPEC
+          THEN DOUBLE_CHECK_UPDATE (AA [I]);
+
+END;
+
+

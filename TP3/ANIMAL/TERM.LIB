@@ -1,0 +1,253 @@
+
+(* READ CONSOLE reads a single character from the console. (Echo output) *)
+
+{PROCEDURE RDCON (VAR CH : CHAR);
+
+BEGIN
+
+   READ (TRM,CH);
+
+END;}
+
+(* READ REAL reads a real number with Input checking toggled off. *)
+
+PROCEDURE RDREAL (VAR R : REAL);
+
+VAR REAL_NUMBER : BOOLEAN;
+
+BEGIN
+
+   REPEAT
+
+      {$I-}
+      READ (R);
+      {$I+}
+      REAL_NUMBER := (IORESULT = 0);
+      IF NOT REAL_NUMBER
+         THEN WRITE (^G, ' ...ERROR -- Number only: ');
+
+   UNTIL REAL_NUMBER;
+
+END;
+
+(* READLN REAL reads a real number and ends the line. *)
+
+PROCEDURE RDLNREAL (VAR R : REAL);
+
+VAR REAL_NUMBER : BOOLEAN;
+
+BEGIN
+
+   REPEAT
+
+      {$I-}
+      READLN (R);
+      {$I+}
+      REAL_NUMBER := (IORESULT = 0);
+      IF NOT REAL_NUMBER
+         THEN WRITE (^G, 'ERROR -- Please enter a number only: ');
+
+   UNTIL REAL_NUMBER;
+
+END;
+
+(* READ INTEGER reads an integer number with Input checking toggled off. *)
+(* Uses READ REAL for input and scales into integer range accordingly. *)
+
+PROCEDURE RDINT (VAR I : INTEGER);
+
+VAR R : REAL;
+
+BEGIN
+
+   R := I;
+   RDREAL (R);
+   IF R > MAXINT
+        THEN I := MAXINT
+   ELSE IF R < -1 * MAXINT
+        THEN I := -1 * MAXINT
+   ELSE I := ROUND (R);
+
+END;
+
+(* READLN INTEGER reads an integer number and ends the line. *)
+
+PROCEDURE RDLNINT (VAR I : INTEGER);
+
+VAR R : REAL;
+
+BEGIN
+
+   R := I;
+   RDLNREAL (R);
+   IF R > MAXINT
+        THEN I := MAXINT
+   ELSE IF R < -1 * MAXINT
+        THEN I := -1 * MAXINT
+   ELSE I := ROUND (R);
+
+END;
+
+(* READ KEYBOARD STATUS gets the input status of the keyboard. *)
+
+PROCEDURE RDKEYST (VAR KEYSTAT : BOOLEAN);
+
+TYPE REGISTER_SET = RECORD
+        AX,BX,CX,DX,BP,SI,DI,DS,ES,FLAGS : INTEGER;
+        END;
+
+VAR REG : REGISTER_SET;
+
+BEGIN
+
+   REG.AX := $0B * 256;             (* AH <-- Read-Keyboard-Status fn *)
+   MSDOS (REG);
+   IF REG.AX MOD 256 = 0            (* AL <-- keyboard status *)
+      THEN KEYSTAT := FALSE
+      ELSE KEYSTAT := TRUE;
+
+END;
+
+(* READ KEY reads in a character from the keyboard
+(* without echoing it to the terminal screen. *)
+
+PROCEDURE RDKEY (VAR KEY : CHAR);
+
+TYPE REGISTER_SET = RECORD
+        AX,BX,CX,DX,BP,SI,DI,DS,ES,FLAGS : INTEGER;
+        END;
+
+VAR REG : REGISTER_SET;
+
+BEGIN
+
+   REG.AX := $07 * 256;             (* AH <-- Read-Keyboard fn *)
+   MSDOS (REG);
+   KEY := CHR (REG.AX MOD 256);     (* AL <-- keyboard character *)
+
+END;
+
+(* CLEAR KEYBOARD clears out the keyboard input status and input buffer. *)
+
+PROCEDURE CLRKEY;
+
+TYPE REGISTER_SET = RECORD
+        AX,BX,CX,DX,BP,SI,DI,DS,ES,FLAGS : INTEGER;
+        END;
+
+VAR REG : REGISTER_SET;
+
+BEGIN
+
+   REG.AX := $0C * 256 + $06;       (* AH <-- Clear-Keyboard fn *)
+   MSDOS (REG);                     (* AL <-- Read-Immediate fn *)
+
+END;
+
+(* READ CONSOLE reads a single character from the console. (Echo output) *)
+(* Includes lower case to upper case conversion for ANIMAL comands. *)
+
+PROCEDURE RDCON (VAR CH : CHAR);
+
+BEGIN
+
+   RDKEY (CH);
+   IF CH IN ['a'..'z']
+      THEN CH := UPCASE (CH);
+   WRITE (CH);
+
+END;
+
+(* WAIT A SECOND pauses the program flow for 1 second. *)
+
+PROCEDURE WAIT_A_SECOND;
+
+BEGIN
+
+   DELAY (1000);
+
+END;
+
+(* WAIT pauses the program flow for N milliseconds. *)
+
+PROCEDURE WAIT (N : INTEGER);
+
+BEGIN
+
+   DELAY (N);
+
+END;
+
+(* AXIS LINES counts the number of specified ANIMAL axes.*)
+
+PROCEDURE AXIS_LINES (VAR S : INTEGER);
+   FORWARD;
+
+(* CLEAR SCREEN clears out the CRT terminal screen. *)
+
+PROCEDURE CLRSCRN;
+
+BEGIN
+
+   CLRSCR;
+
+END;
+
+(* CLEAR REST OF SCREEN clears out only the lower half of the screen. *)
+
+PROCEDURE CLREST;
+
+VAR N : INTEGER;
+    L : INTEGER;
+
+BEGIN
+
+   AXIS_LINES (L);
+   IF L = 0
+      THEN L := 7
+      ELSE L := L + 6;
+
+   FOR N := L TO 25 DO
+       BEGIN
+       GOTOXY (1,N);
+       CLREOL;
+       END;
+
+   GOTOXY (1,L);
+
+END;
+
+(* GOTO REST OF SCREEN goes to the rest of screen without erasing it. *)
+
+PROCEDURE GOREST;
+
+VAR L : INTEGER;
+
+BEGIN
+
+   AXIS_LINES (L);
+   IF L = 0
+      THEN L := 7
+      ELSE L := L+6;
+   GOTOXY (1,L);
+
+END;
+
+(* 'TITLE' displays the title header for ANIMAL. *)
+
+PROCEDURE TITLE;
+
+BEGIN
+
+CLRSCRN;
+
+WRITELN;
+WRITELN('                                  ANIMAL');
+WRITELN;
+WRITELN('                      ANIMATION APPLICATIONS LANGUAGE');
+WRITELN('                          FOR ANIMATIONSAKADEMIEN');
+WRITELN;
+
+END;
+
+
