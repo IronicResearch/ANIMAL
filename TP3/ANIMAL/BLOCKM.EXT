@@ -1,3 +1,9 @@
+CONST MAX_AXES = 8;
+
+VAR I : INTEGER;
+    AA : ARRAY [1..MAX_AXES] OF AXIS_TABLE;
+
+TYPE CHAR2 = ARRAY [1..2] OF CHAR;
 
 (* PUT_AXIS_ARRAY puts individual axis data into the master axis array. *)
 
@@ -5,25 +11,14 @@ PROCEDURE PUT_AXIS_ARRAY;
 
 BEGIN
 
-   AA [ 1] := PN;
-   AA [ 2] := TL;
-   AA [ 3] := BM;
-   AA [ 4] := HT;
-   AA [ 5] := TR;
-   AA [ 6] := RT;
-   AA [ 7] := LP;
-   AA [ 8] := GR;
-   AA [ 9] := RL;
-   AA [10] := LV;
-   AA [11] := FF;
-   AA [12] := ZM;
-   AA [13] := XA;
-   AA [14] := XB;
-   AA [15] := XC;
-   AA [16] := XD;
-   AA [17] := XE;
-   AA [18] := XF;
-   AA [19] := XG;
+   AA [ 1] := X;
+   AA [ 2] := Y;
+   AA [ 3] := Z;
+   AA [ 4] := F;
+   AA [ 5] := R;
+   AA [ 6] := U;
+   AA [ 7] := L;
+   AA [ 8] := P;
 
 END;
 
@@ -33,25 +28,14 @@ PROCEDURE GET_AXIS_ARRAY;
 
 BEGIN
 
-   PN := AA [ 1];
-   TL := AA [ 2];
-   BM := AA [ 3];
-   HT := AA [ 4];
-   TR := AA [ 5];
-   RT := AA [ 6];
-   LP := AA [ 7];
-   GR := AA [ 8];
-   RL := AA [ 9];
-   LV := AA [10];
-   FF := AA [11];
-   ZM := AA [12];
-   XA := AA [13];
-   XB := AA [14];
-   XC := AA [15];
-   XD := AA [16];
-   XE := AA [17];
-   XF := AA [18];
-   XG := AA [19];
+   X := AA [ 1];
+   Y := AA [ 2];
+   Z := AA [ 3];
+   F := AA [ 4];
+   R := AA [ 5];
+   U := AA [ 6];
+   L := AA [ 7];
+   P := AA [ 8];
 
 END;
 

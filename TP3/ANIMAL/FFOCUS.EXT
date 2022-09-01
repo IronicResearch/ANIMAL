@@ -1,4 +1,4 @@
-PROCEDURE FOLLOW_FOCUS_ADJUSTMENT;
+OVERLAY PROCEDURE FOLLOW_FOCUS_ADJUSTMENT;
 
 (* PHANTOM FOLLOW FOCUS is the program for coordinating a lens assembly F-axis
 (* to a non-existant focussing distance Z-axis for follow focus control. *)
@@ -161,7 +161,8 @@ END;
 (* This section moves the Z and F axes into follow-focus positions according
 (* to the operator's input focussing specifications. After the computed
 (* positions are generated, the operator may overide the axes to compensate
-(* for out-of-focus conditions based on the mechanical slop in the system. *)
+(* for out-of-focus conditions based on the mechanical slop in the system. *)
+
 
 PROCEDURE GOTO_FOCUS_POSITIONS;
 
@@ -276,14 +277,14 @@ END;      (* procedure GO FOLLOW FOCUS *)
 
 BEGIN     (* procedure FOLLOW FOCUS ADJUSTMENT *)
 
-FN := CHR (FF.M.MOTORNO);
-ZN := CHR (BM.M.MOTORNO);
+FN := CHR (F.M.MOTORNO);
+ZN := CHR (Z.M.MOTORNO);
 
-FM := FF.M;
-ZM := BM.M;
+FM := F.M;
+ZM := Z.M;
 
-FC := FF.C;
-ZC := BM.C;
+FC := F.C;
+ZC := Z.C;
 
 CLRSCRN;
 
@@ -311,14 +312,14 @@ IF ANSWER = 'Y'
         WRITELN;
         IF ANSWER = 'Y'
            THEN GO_FOLLOW_FOCUS;
-        FF.K.KSCALE := FF_SCALE;
-        FF.K.UNITS := 'Focus Distance';
+        F.K.KSCALE := FF_SCALE;
+        F.K.UNITS := 'Focus Distance';
         END
 
    ELSE BEGIN
         FOLLOW_FOCUS := FALSE;
-        FF.K.KSCALE := 1.0;
-        FF.K.UNITS := 'Steps';
+        F.K.KSCALE := 1.0;
+        F.K.UNITS := 'Steps';
         END;
 
 END;     (* procedure FOLLOW FOCUS ADJUSTMENT *)

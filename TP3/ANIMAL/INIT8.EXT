@@ -1,7 +1,12 @@
+VAR        SEQUENCE_TIME : REAL;
+           REMOTE : BOOLEAN;
+           DISPLAY : BOOLEAN;
+           REVERSE : BOOLEAN;
 
 (* INIT LOAD initializes and loads all of the one-time ANIMAL info. *)
 
 PROCEDURE INIT_LOAD;
+   FORWARD;
 
 (* INITIALIZE MCPU finds out if the MCPU is ready for communications
 (* with the host desktop computer. *)
@@ -38,30 +43,18 @@ PROCEDURE ASSIGN_AXES;
 
 BEGIN
 
-   E.M.MOTORNO := 31;
-   A.M.MOTORNO := 32;
+   E.M.MOTORNO := 11;
+   A.M.MOTORNO := 12;
 
-   PN.M.MOTORNO := 17;
-   TL.M.MOTORNO := 19;
-   BM.M.MOTORNO := 27;
-   HT.M.MOTORNO :=  7;
-   TR.M.MOTORNO := 29;
-   RT.M.MOTORNO := 21;
+   X.M.MOTORNO := 1;
+   Y.M.MOTORNO := 3;
+   Z.M.MOTORNO := 5;
+   F.M.MOTORNO := 7;
+   R.M.MOTORNO := 9;
 
-   LP.M.MOTORNO :=  9;
-   GR.M.MOTORNO := 11;
-   RL.M.MOTORNO := 13;
-   LV.M.MOTORNO := 23;
-   FF.M.MOTORNO :=  1;
-   ZM.M.MOTORNO :=  3;
-
-   XA.M.MOTORNO :=  2;
-   XB.M.MOTORNO :=  4;
-   XC.M.MOTORNO :=  6;
-   XD.M.MOTORNO :=  8;
-   XE.M.MOTORNO := 10;
-   XF.M.MOTORNO := 12;
-   XG.M.MOTORNO := 14;
+   U.M.MOTORNO := 2;
+   L.M.MOTORNO := 4;
+   P.M.MOTORNO := 6;
 
 END;   (* procedure ASSIGN AXES *)
 
@@ -71,25 +64,16 @@ PROCEDURE NAME_AXES;
 
 BEGIN
 
-PN.ID := 'PN';
-TL.ID := 'TL';
-BM.ID := 'BM';
-HT.ID := 'HT';
-TR.ID := 'TR';
-RT.ID := 'RT';
-LP.ID := 'LP';
-GR.ID := 'GR';
-RL.ID := 'RL';
-LV.ID := 'LV';
-FF.ID := 'FF';
-ZM.ID := 'ZM';
-XA.ID := 'XA';
-XB.ID := 'XB';
-XC.ID := 'XC';
-XD.ID := 'XD';
-XE.ID := 'XE';
-XF.ID := 'XF';
-XG.ID := 'XG';
+   X.ID := 'X';
+   Y.ID := 'Y';
+   Z.ID := 'Z';
+   F.ID := 'F';
+   R.ID := 'R';
+   U.ID := 'U';
+   L.ID := 'L';
+   P.ID := 'P';
+   E.ID := 'E';
+   A.ID := 'A';
 
 END;
 
@@ -108,7 +92,7 @@ BEGIN
 END;
 
 (* INITIALIZE MOTOR transfers the running speed profiles to the motors.*)
-
+{
 PROCEDURE INIT_MOTOR (VAR A : AXIS_TABLE);
 
 BEGIN
@@ -121,7 +105,7 @@ BEGIN
    A.M.RAMPK   := 0;
 
 END;
-
+}
 (* INITIALIZE HOME sets the Home parameters (for starters).*)
 
 PROCEDURE INIT_HOME (VAR A : AXIS_TABLE);
@@ -129,7 +113,7 @@ PROCEDURE INIT_HOME (VAR A : AXIS_TABLE);
 BEGIN
 
    A.H.DIR := REV;
-   A.H.HOMECNT := 0;
+   A.H.COUNT := 0;
 
 END;
 
@@ -177,7 +161,7 @@ END;
 
 (* INITIALIZE ALL MOTOR transfers all optimum ANIMAL axis speeds
 (* from the run profile records to the motor records. *)
-
+{
 PROCEDURE INIT_ALL_MOTOR;
 
 BEGIN
@@ -186,7 +170,7 @@ BEGIN
        INIT_MOTOR (AA [I]);
 
 END;
-
+}
 (* DEFAULT SPEEDS attempts to load a default speed file from disk. *)
 
 PROCEDURE DEFAULT_SPEEDS;
@@ -312,6 +296,10 @@ FOR I := 1 TO MAX_AXES DO
     AA [I].K.UNITS := 'Steps';
 
 END;   (* procedure INIT STUFF *)
+
+(* INIT LOAD initializes and loads all of the one-time ANIMAL info. *)
+
+PROCEDURE INIT_LOAD;
 
 BEGIN   (* INIT LOAD *)
 

@@ -2,7 +2,7 @@
 (* SCALE_FACTORS; scales each of ANIMAL's MCPU axes with the user-specified
 (* conversion factor and measurement units. *)
 
-(* OVERLAY *) PROCEDURE SCALE_FACTORS;
+OVERLAY PROCEDURE SCALE_FACTORS;
 
 VAR ANSWER : CHAR;
     SCALE_OK : BOOLEAN;
@@ -111,25 +111,14 @@ UNTIL NAME_OK OR SAVE_OK;
 IF SAVE_OK
    THEN BEGIN
 
-   WRITE (UNITSFILE, PN.K);
-   WRITE (UNITSFILE, TL.K);
-   WRITE (UNITSFILE, BM.K);
-   WRITE (UNITSFILE, HT.K);
-   WRITE (UNITSFILE, TR.K);
-   WRITE (UNITSFILE, RT.K);
-   WRITE (UNITSFILE, LP.K);
-   WRITE (UNITSFILE, GR.K);
-   WRITE (UNITSFILE, RL.K);
-   WRITE (UNITSFILE, LV.K);
-   WRITE (UNITSFILE, FF.K);
-   WRITE (UNITSFILE, ZM.K);
-   WRITE (UNITSFILE, XA.K);
-   WRITE (UNITSFILE, XB.K);
-   WRITE (UNITSFILE, XC.K);
-   WRITE (UNITSFILE, XD.K);
-   WRITE (UNITSFILE, XE.K);
-   WRITE (UNITSFILE, XF.K);
-   WRITE (UNITSFILE, XG.K);
+   WRITE (UNITSFILE, X.K);
+   WRITE (UNITSFILE, Y.K);
+   WRITE (UNITSFILE, Z.K);
+   WRITE (UNITSFILE, F.K);
+   WRITE (UNITSFILE, R.K);
+   WRITE (UNITSFILE, U.K);
+   WRITE (UNITSFILE, L.K);
+   WRITE (UNITSFILE, P.K);
 
    CLOSE (UNITSFILE);
    WRITELN ('File saving completed');
@@ -182,25 +171,14 @@ UNTIL NAME_OK OR LOAD_OK;
 IF LOAD_OK
    THEN BEGIN
 
-   READ (UNITSFILE, PN.K);
-   READ (UNITSFILE, TL.K);
-   READ (UNITSFILE, BM.K);
-   READ (UNITSFILE, HT.K);
-   READ (UNITSFILE, TR.K);
-   READ (UNITSFILE, RT.K);
-   READ (UNITSFILE, LP.K);
-   READ (UNITSFILE, GR.K);
-   READ (UNITSFILE, RL.K);
-   READ (UNITSFILE, LV.K);
-   READ (UNITSFILE, FF.K);
-   READ (UNITSFILE, ZM.K);
-   READ (UNITSFILE, XA.K);
-   READ (UNITSFILE, XB.K);
-   READ (UNITSFILE, XC.K);
-   READ (UNITSFILE, XD.K);
-   READ (UNITSFILE, XE.K);
-   READ (UNITSFILE, XF.K);
-   READ (UNITSFILE, XG.K);
+   READ (UNITSFILE, X.K);
+   READ (UNITSFILE, Y.K);
+   READ (UNITSFILE, Z.K);
+   READ (UNITSFILE, F.K);
+   READ (UNITSFILE, R.K);
+   READ (UNITSFILE, U.K);
+   READ (UNITSFILE, L.K);
+   READ (UNITSFILE, P.K);
 
    CLOSE (UNITSFILE);
    WRITELN ('File loading completed');
@@ -225,28 +203,17 @@ REPEAT
 
    IF PRIMARY
       THEN BEGIN
-           SCALE (PN);
-           SCALE (TL);
-           SCALE (BM);
-           SCALE (TR);
-           SCALE (HT);
-           SCALE (RT);
-           SCALE (LP);
-           SCALE (GR);
-           SCALE (RL);
-           SCALE (LV);
+           SCALE (X);
+           SCALE (Y);
+           SCALE (Z);
+           SCALE (R);
            END
 
       ELSE BEGIN
-           SCALE (FF);
-           SCALE (ZM);
-           SCALE (XA);
-           SCALE (XB);
-           SCALE (XC);
-           SCALE (XD);
-           SCALE (XE);
-           SCALE (XF);
-           SCALE (XG);
+           SCALE (F);
+           SCALE (U);
+           SCALE (L);
+           SCALE (P);
            END;
 
    WRITELN;

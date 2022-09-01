@@ -1,10 +1,15 @@
+VAR
+    STREAK_TIME : REAL;
+    STREAK_DELAY : REAL;
+    STREAK_EXPOSURE : BOOLEAN;
+    HOLD_FRAME : INTEGER;
 
 (* GO ANIMAL contains the main programmed options for running
 (* stop motion, go motion, and live action animation sequences. *)
 
 (* 08-25-86 *)
 
-(* OVERLAY *) PROCEDURE GO_ANIMAL;
+OVERLAY PROCEDURE GO_ANIMAL;
 
 (* PRE-COMPUTE pre-computes the initial incremental step count
 (* for the first frame of a Stop Motion sequence. *)
@@ -696,10 +701,10 @@ BEGIN
    IF E.M.DIR = REV
       THEN DIRECTION_STAT := 'REV'
       ELSE DIRECTION_STAT := 'FWD';
-
+{
    GETCOUNT (XC.C);
    RECONVERT (XC.C.COUNT, XC.K.KSCALE, SHUTTER_ANGLE);
-
+}
    WRITELN ('Camera Selection Menu:');
    WRITELN;
    WRITELN ('   E : Exposure Time Interval        |', EXPOSURE_TIME:10:2);
@@ -837,7 +842,7 @@ BEGIN
                  SELECTION := TRUE;
                  END;
 
-           CR :  SELECTION := TRUE;
+           ^M :  SELECTION := TRUE;
 
            ELSE  WRITELN;
 
@@ -1141,7 +1146,7 @@ REPEAT
 
          'Q' : QUIT_PARAMETERS := TRUE;
 
-         CR :  QUIT_PARAMETERS := TRUE;
+         ^M  : QUIT_PARAMETERS := TRUE;
 
          ELSE  WRITELN;
 
@@ -1184,16 +1189,11 @@ BEGIN
 
       WRITELN ('Specify +/- Axis Parameters:      |  (Use 2-letter selections)');
       WRITELN;
-      WRITELN ('PN : PN Axis = Pan                |  FF : FF Axis = Follow Focus');
-      WRITELN ('TL : TL Axis = Tilt               |  ZM : ZM Axis = Zoom Lens');
-      WRITELN ('BM : BM Axis = Boom               |  XA : XA Axis = Aux Line A');
-      WRITELN ('HT : HT Axis = Height             |  XB : XB Axis = Aux Line B');
-      WRITELN ('TR : TR Axis = Track              |  XC : XC Axis = Aux Line C');
-      WRITELN ('RT : RT Axis = Rotation           |  XD : XD Axis = Aux Line D');
-      WRITELN ('LP : LP Axis = Loop Lens          |  XE : XE Axis = Aux Line E');
-      WRITELN ('GR : GR Axis = Gir Lens           |  XF : XF Axis = Aux Line F');
-      WRITELN ('RL : RL Axis = Roll Lens          |  XG : XG Axis = Aux Line G');
-      WRITELN ('LV : LV Axis = Level              |  QQ : Quit Axis Selections');
+      WRITELN ('XX : X  Axis = Pan                |  FF : F  Axis = Follow Focus');
+      WRITELN ('YY : Y  Axis = Tilt               |  UU : U  Axis = Upper Pegnars');
+      WRITELN ('ZZ : Z  Axis = Zoom               |  LL : L  Axis = Lower Pegbars');
+      WRITELN ('RR : R  Axis = Rotate             |  PP : P  Axis = Platen Lifter');
+      WRITELN ('FF : F  Axis = Follow Focus       |  QQ : Quit Axis Selections');
       WRITELN;
 
       RDCON (MOVESPEC [1]);
@@ -1209,7 +1209,7 @@ BEGIN
       IF MOVESPEC = 'QQ'
          THEN MOVEMENTS_SPECIFIED := TRUE;
 
-      IF MOVESPEC [2] = (CR)
+      IF MOVESPEC [2] = ^M
          THEN MOVEMENTS_SPECIFIED := TRUE;
 
    UNTIL MOVEMENTS_SPECIFIED;
@@ -1282,7 +1282,7 @@ BEGIN
                       'Y' : EXPOSURE := TRUE;
                       'N' : EXPOSURE := FALSE;
                       'E' : EXPOSURE := NOT EXPOSURE;
-                      CR  : EXPOSURE := TRUE;
+                      ^M  : EXPOSURE := TRUE;
                       END;
                  END;
 
@@ -1307,7 +1307,7 @@ BEGIN
                       'M' : SEQUENCED := FALSE;
                       'A' : SEQUENCED := TRUE;
                       'S' : SEQUENCED := NOT SEQUENCED;
-                      CR  : SEQUENCED := TRUE;
+                      ^M  : SEQUENCED := TRUE;
                       END;
 
                  IF NOT SEQUENCED
@@ -1337,7 +1337,7 @@ BEGIN
                       'Y' : DISPLAY := TRUE;
                       'N' : DISPLAY := FALSE;
                       'D' : DISPLAY := NOT DISPLAY;
-                      CR  : DISPLAY := TRUE;
+                      ^M  : DISPLAY := TRUE;
                       END;
                  END;
 
@@ -1350,7 +1350,7 @@ BEGIN
 
            'Q' : MOVEMENTS_SPECIFIED := TRUE;
 
-           CR :  MOVEMENTS_SPECIFIED := TRUE;
+           ^M  : MOVEMENTS_SPECIFIED := TRUE;
 
            ELSE  WRITELN;
 
@@ -1957,7 +1957,7 @@ REPEAT
               SELECTION := TRUE;
               END;
 
-        CR :  BEGIN
+        ^M  : BEGIN
               IF FRAME_COUNT < PRESET_COUNT
                  THEN IF STOPMOTION
                            THEN RUN_STOP_MOTION

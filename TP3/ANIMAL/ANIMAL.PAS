@@ -64,7 +64,7 @@ CONST FWD = TRUE;
 
 TYPE AXIS = RECORD
         MOTORNO : INTEGER;
-        STEPCNT : INTEGER;
+        STEPCNT : REAL;         (* LONGINT ? *)
         DIR : BOOLEAN;
         SPEED : INTEGER;
         ACCELST : BOOLEAN;
@@ -76,6 +76,9 @@ TYPE AXIS = RECORD
 
      PARAMETER_TABLE = RECORD
           SPEC : BOOLEAN;
+          MULTI : BOOLEAN;
+          TOTAL : INTEGER;
+          SEGMENT : INTEGER;
           START_FRAME : INTEGER;
           END_FRAME : INTEGER;
 
@@ -100,14 +103,14 @@ TYPE AXIS = RECORD
      CONVERSION_TABLE = RECORD
           KSCALE : REAL;
           DP : INTEGER;
-          CUR_STEP : INTEGER;
+          CUR_STEP : REAL;      (* LONGINT ? *)
           CUR_POSN : REAL;
           UNITS : STRING [15];
           END;
 
      COUNT_TABLE = RECORD
           AXISNO : INTEGER;
-          COUNT : INTEGER;
+          COUNT : REAL;         (* LONGINT ? *)
           STAT : CHAR;
           ERROR : BOOLEAN;
           END;
@@ -122,10 +125,10 @@ TYPE AXIS = RECORD
           END;
 
      EXECUTION_TABLE = RECORD
-          START_STP : INTEGER;
-          END_STP : INTEGER;
-          INCR_STP : INTEGER;
-          CUR_STP : INTEGER;
+          START_STP : REAL;
+          END_STP : REAL;
+          INCR_STP : REAL;
+          CUR_STP : REAL;
 
           FRAME_COUNT : INTEGER;
           ACCEL_FRAME : INTEGER;
@@ -133,10 +136,10 @@ TYPE AXIS = RECORD
           DECEL_FRAME : INTEGER;
           INCR_MAX : REAL;
 
-          INITL_CNT : INTEGER;
-          FINAL_CNT : INTEGER;
-          DELTA_CNT : INTEGER;
-          CUR_CNT : INTEGER;
+          INITL_CNT : REAL;
+          FINAL_CNT : REAL;
+          DELTA_CNT : REAL;
+          CUR_CNT : REAL;
 
           ACCEL : BOOLEAN;
           SPEED : INTEGER;
@@ -152,6 +155,7 @@ TYPE AXIS = RECORD
           ALIGN : BOOLEAN;
           STEPS : INTEGER;
           COUNT : INTEGER;
+          DIR : BOOLEAN;
           END;
 
      AXIS_TABLE = RECORD
@@ -159,6 +163,7 @@ TYPE AXIS = RECORD
           ID : CHAR;
           M : AXIS;
           P : PARAMETER_TABLE;
+          I : ARRAY [1..10] OF PARAMETER_TABLE;
           K : CONVERSION_TABLE;
           C : COUNT_TABLE;
           R : RUN_PROFILE;
@@ -201,7 +206,7 @@ VAR CH : CHAR;
     ADVANCEONLY : BOOLEAN;
     ROTOSCOPING : BOOLEAN;
     PLAT_STAT : BOOLEAN;
-    FOLLOWFOCUS : BOOLEAN;
+    FOLLOW_FOCUS : BOOLEAN;
 
     X : AXIS_TABLE;       (* X Compound *)
     Y : AXIS_TABLE;       (* Y Compound *)
@@ -216,6 +221,7 @@ VAR CH : CHAR;
     A : AXIS_TABLE;       (* ANICAM Advance Only *)
     Q : AXIS_TABLE;       (* ANICAM Torque Motors *)
 
+{
     O_SIZE : REAL;              (* object field size *)
     I_SIZE : REAL;              (* image size *)
 
@@ -250,21 +256,24 @@ VAR CH : CHAR;
 
     Z_ADJUST : INTEGER;         (* Z axis focus positiom adjustment *)
     F_ADJUST : INTEGER;         (* F axis focus positiom adjustment *)
+}
 
 {$I SIO86.LIB}
 {$I TERM.LIB}
 {$I COMM.LIB}
-{$I MCPUM.LIB}
-{$I MCPUX.LIB}
+(* {$I MCPUM.LIB}               (* 16-bit step counts *)
+{$I MCPUX.LIB}                  (* 24-bit step counts *)
 
 {$I BLOCKM.EXT}
-{$I MOREM.EXT}
+{$I MOREX.EXT}
 {$I WAITOVER.EXT}
 
+{$I FADE.EXT}
 {$I CONVERT.EXT}
 {$I STATUS.EXT}
 {$I UPDATE.EXT}
 
+{$I INITM.EXT}
 {$I INIT8.EXT}
 {$I FILEDIR.EXT}
 
@@ -338,7 +347,7 @@ BEGIN
 
            'P' : BEGIN
                  WRITELN ('oint-Plotting Sequences...');
-                 XY_PLOT;
+                 AXIS_PLOT;
                  END;
 
            'O' : BEGIN

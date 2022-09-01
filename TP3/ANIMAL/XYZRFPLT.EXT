@@ -11,7 +11,7 @@
 (* Automatic Increment Computations *)
 (* Compacted 7-axis Array Processing *)
 
-(* OVERLAY *) PROCEDURE AXIS_PLOT;
+OVERLAY PROCEDURE AXIS_PLOT;
 
 CONST FWD = TRUE;
       REV = FALSE;
@@ -1680,26 +1680,26 @@ BEGIN    (* procedure AXIS_PLOT *)
    WRITELN ('and that all selected axis values are based on steps only.');
    WRITELN;
 
-   AP [1].MM := PN.M;
-   AP [1].CC := PN.C;
+   AP [1].MM := X.M;
+   AP [1].CC := X.C;
 
-   AP [2].MM := TL.M;
-   AP [2].CC := TL.C;
+   AP [2].MM := Y.M;
+   AP [2].CC := Y.C;
 
-   AP [3].MM := BM.M;
-   AP [3].CC := BM.C;
+   AP [3].MM := Z.M;
+   AP [3].CC := Z.C;
 
-   AP [4].MM := HT.M;
-   AP [4].CC := HT.C;
+   AP [4].MM := F.M;
+   AP [4].CC := F.C;
 
-   AP [5].MM := TR.M;
-   AP [5].CC := TR.C;
+   AP [5].MM := R.M;
+   AP [5].CC := R.C;
 
-   AP [6].MM := RT.M;
-   AP [6].CC := RT.C;
+   AP [6].MM := U.M;
+   AP [6].CC := U.C;
 
-   AP [7].MM := FF.M;
-   AP [7].CC := FF.C;
+   AP [7].MM := L.M;
+   AP [7].CC := L.C;
 
    FOR N := 1 TO MX DO
        AP [N].SPEC := TRUE;

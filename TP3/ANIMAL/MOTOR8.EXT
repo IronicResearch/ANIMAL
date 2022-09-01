@@ -2,7 +2,7 @@
 (* MOTOR PROFILE displays the currently active MCPU motor speed profile
 (* for each available ANIMAL axis, and allows the user to modify it.*)
 
-(* OVERLAY *) PROCEDURE MOTOR_PROFILE;
+OVERLAY PROCEDURE MOTOR_PROFILE;
 
 VAR ANSWER : CHAR;
     SPEEDS_OK : BOOLEAN;
@@ -118,25 +118,14 @@ UNTIL NAME_OK OR SAVE_OK;
 IF SAVE_OK
    THEN BEGIN
 
-   WRITE (SPEEDFILE, PN.R);
-   WRITE (SPEEDFILE, TL.R);
-   WRITE (SPEEDFILE, BM.R);
-   WRITE (SPEEDFILE, HT.R);
-   WRITE (SPEEDFILE, TR.R);
-   WRITE (SPEEDFILE, RT.R);
-   WRITE (SPEEDFILE, LP.R);
-   WRITE (SPEEDFILE, GR.R);
-   WRITE (SPEEDFILE, RL.R);
-   WRITE (SPEEDFILE, LV.R);
-   WRITE (SPEEDFILE, FF.R);
-   WRITE (SPEEDFILE, ZM.R);
-   WRITE (SPEEDFILE, XA.R);
-   WRITE (SPEEDFILE, XB.R);
-   WRITE (SPEEDFILE, XC.R);
-   WRITE (SPEEDFILE, XD.R);
-   WRITE (SPEEDFILE, XE.R);
-   WRITE (SPEEDFILE, XF.R);
-   WRITE (SPEEDFILE, XG.R);
+   WRITE (SPEEDFILE, X.R);
+   WRITE (SPEEDFILE, Y.R);
+   WRITE (SPEEDFILE, Z.R);
+   WRITE (SPEEDFILE, F.R);
+   WRITE (SPEEDFILE, R.R);
+   WRITE (SPEEDFILE, L.R);
+   WRITE (SPEEDFILE, U.R);
+   WRITE (SPEEDFILE, P.R);
 
    CLOSE (SPEEDFILE);
    WRITELN ('File saving completed');
@@ -189,25 +178,14 @@ UNTIL NAME_OK OR LOAD_OK;
 IF LOAD_OK
    THEN BEGIN
 
-   READ (SPEEDFILE, PN.R);
-   READ (SPEEDFILE, TL.R);
-   READ (SPEEDFILE, BM.R);
-   READ (SPEEDFILE, HT.R);
-   READ (SPEEDFILE, TR.R);
-   READ (SPEEDFILE, RT.R);
-   READ (SPEEDFILE, LP.R);
-   READ (SPEEDFILE, GR.R);
-   READ (SPEEDFILE, RL.R);
-   READ (SPEEDFILE, LV.R);
-   READ (SPEEDFILE, FF.R);
-   READ (SPEEDFILE, ZM.R);
-   READ (SPEEDFILE, XA.R);
-   READ (SPEEDFILE, XB.R);
-   READ (SPEEDFILE, XC.R);
-   READ (SPEEDFILE, XD.R);
-   READ (SPEEDFILE, XE.R);
-   READ (SPEEDFILE, XF.R);
-   READ (SPEEDFILE, XG.R);
+   READ (SPEEDFILE, X.R);
+   READ (SPEEDFILE, Y.R);
+   READ (SPEEDFILE, Z.R);
+   READ (SPEEDFILE, F.R);
+   READ (SPEEDFILE, R.R);
+   READ (SPEEDFILE, U.R);
+   READ (SPEEDFILE, L.R);
+   READ (SPEEDFILE, P.R);
 
    CLOSE (SPEEDFILE);
    WRITELN ('File loading complete');
@@ -236,28 +214,17 @@ REPEAT
 
    IF PRIMARY
       THEN BEGIN
-           SPEED (PN);
-           SPEED (TL);
-           SPEED (BM);
-           SPEED (HT);
-           SPEED (TR);
-           SPEED (RT);
-           SPEED (LP);
-           SPEED (GR);
-           SPEED (RL);
-           SPEED (LV);
+           SPEED (X);
+           SPEED (Y);
+           SPEED (Z);
+           SPEED (F);
+           SPEED (R);
            END
 
       ELSE BEGIN
-           SPEED (FF);
-           SPEED (ZM);
-           SPEED (XA);
-           SPEED (XB);
-           SPEED (XC);
-           SPEED (XD);
-           SPEED (XE);
-           SPEED (XF);
-           SPEED (XG);
+           SPEED (U);
+           SPEED (L);
+           SPEED (P);
            END;
 
    WRITELN;

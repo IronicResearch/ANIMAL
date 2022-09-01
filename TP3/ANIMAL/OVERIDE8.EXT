@@ -134,7 +134,7 @@ BEGIN
                  SELECTION := TRUE;
                  END;
 
-           CR :  BEGIN
+           ^M :  BEGIN
                  WRITELN ('Quit Camera Selections');
                  WRITELN;
                  SELECTION := TRUE;
@@ -422,25 +422,15 @@ GET_AXIS_ARRAY;
 WRITE   ('AXIS #   DESCRIPTION  ', 'POSITION':8, 'STAT':5, '   |   ');
 WRITELN ('AXIS #   DESCRIPTION  ', 'POSITION':8, 'STAT':5);
 WRITELN;
-WRITE   ('PN # 17 : Pan        :', PN.C.COUNT:8:0, PN.C.STAT:5, '   |   ');
-WRITELN ('FF #  1 : F Focus    :', FF.C.COUNT:8:0, FF.C.STAT:5);
-WRITE   ('TL # 19 : Tilt       :', TL.C.COUNT:8:0, TL.C.STAT:5, '   |   ');
-WRITELN ('ZM #  3 : Zoom Lens  :', ZM.C.COUNT:8:0, ZM.C.STAT:5);
-WRITE   ('BM # 27 : Boom       :', BM.C.COUNT:8:0, BM.C.STAT:5, '   |   ');
-WRITELN ('XA #  2 : Aux Line A :', XA.C.COUNT:8:0, XA.C.STAT:5);
-WRITE   ('HT #  7 : Height     :', HT.C.COUNT:8:0, HT.C.STAT:5, '   |   ');
-WRITELN ('XB #  4 : Aux Line B :', XB.C.COUNT:8:0, XB.C.STAT:5);
-WRITE   ('TR # 29 : Track      :', TR.C.COUNT:8:0, TR.C.STAT:5, '   |   ');
-WRITELN ('XC #  6 : Aux Line C :', XC.C.COUNT:8:0, XC.C.STAT:5);
-WRITE   ('RT # 21 : Rotation   :', RT.C.COUNT:8:0, RT.C.STAT:5, '   |   ');
-WRITELN ('XD #  8 : Aux Line D :', XD.C.COUNT:8:0, XD.C.STAT:5);
-WRITE   ('LP #  9 : Loop Lens  :', LP.C.COUNT:8:0, LP.C.STAT:5, '   |   ');
-WRITELN ('XE # 10 : Aux Line E :', XE.C.COUNT:8:0, XE.C.STAT:5);
-WRITE   ('GR # 11 : Gir Lens   :', GR.C.COUNT:8:0, GR.C.STAT:5, '   |   ');
-WRITELN ('XF # 12 : Aux Line F :', XF.C.COUNT:8:0, XF.C.STAT:5);
-WRITE   ('RL # 13 : Roll Lens  :', RL.C.COUNT:8:0, RL.C.STAT:5, '   |   ');
-WRITELN ('XG # 14 : Aux Line G :', XG.C.COUNT:8:0, XG.C.STAT:5);
-WRITE   ('LV # 23 : Level      :', LV.C.COUNT:8:0, LV.C.STAT:5, '   |   ');
+WRITE   ('X  #  1 : Pan        :', X.C.COUNT:8:0, X.C.STAT:5, '   |   ');
+WRITELN ('F  #  7 : F Focus    :', F.C.COUNT:8:0, F.C.STAT:5);
+WRITE   ('Y  #  3 : Tilt       :', Y.C.COUNT:8:0, Y.C.STAT:5, '   |   ');
+WRITELN ('U  #  2 : Upper Pegs :', U.C.COUNT:8:0, U.C.STAT:5);
+WRITE   ('Z  #  5 : Zoom       :', Z.C.COUNT:8:0, Z.C.STAT:5, '   |   ');
+WRITELN ('L  #  4 : Lower Pegs :', L.C.COUNT:8:0, L.C.STAT:5);
+WRITE   ('R  #  9 : Rotate     :', R.C.COUNT:8:0, R.C.STAT:5, '   |   ');
+WRITELN ('P  #  6 : Platen     :', P.C.COUNT:8:0, P.C.STAT:5);
+
 WRITELN;
 WRITELN;
 
@@ -624,7 +614,7 @@ BEGIN
                  WRITELN;
                  CASE_AXIS (ID, OK, AX);
                  IF OK THEN XAXISNO := CHR (AX.M.MOTORNO)
-                       ELSE XAXISNO := CHR (PN.M.MOTORNO);
+                       ELSE XAXISNO := CHR ( X.M.MOTORNO);
 
                  WRITE ('Use  Up/Down  Arrow Keys for which Axis?  ');
                  RDCON (ID [1]);
@@ -632,7 +622,7 @@ BEGIN
                  WRITELN;
                  CASE_AXIS (ID, OK, AX);
                  IF OK THEN YAXISNO := CHR (AX.M.MOTORNO)
-                       ELSE YAXISNO := CHR (TL.M.MOTORNO);
+                       ELSE YAXISNO := CHR ( Y.M.MOTORNO);
 
                  WRITELN;
                  WRITELN ('Press RETURN when through jogging');

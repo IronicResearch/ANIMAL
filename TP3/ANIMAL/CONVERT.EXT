@@ -1,0 +1,9 @@
+(* CONVERT converts user defined units into steps. *)
+
+PROCEDURE CONVERT (VAR X : REAL; K : REAL; VAR Y : REAL);
+	FORWARD;
+
+(* RECONVERT reconverts steps into user-defined units. *)
+
+PROCEDURE RECONVERT (VAR X : REAL; K : REAL; VAR Y : REAL);
+	FORWARD;
