@@ -1,7 +1,7 @@
 
 (* Directory Search -- MS DOS Version 1.0 -- File Control Block Method *)
 
-PROCEDURE FILE_DIRECTORY;
+OVERLAY PROCEDURE FILE_DIRECTORY;
 
 TYPE REGISTER_SET = RECORD
         AX,BX,CX,DX,BP,SI,DI,DS,ES,FLAGS : INTEGER;

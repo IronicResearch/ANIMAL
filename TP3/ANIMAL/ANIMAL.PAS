@@ -394,11 +394,7 @@ BEGIN (* ANIMAL *)
 
    RESETSIO;
 
-   INIT_MCPU;
-
-   INIT_STUFF;
-
-   INIT_AXES;
+   INIT_LOAD;
 
    UPDATE_EM_ALL;
 

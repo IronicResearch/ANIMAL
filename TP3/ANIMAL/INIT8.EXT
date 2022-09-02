@@ -5,8 +5,7 @@ VAR        SEQUENCE_TIME : REAL;
 
 (* INIT LOAD initializes and loads all of the one-time ANIMAL info. *)
 
-PROCEDURE INIT_LOAD;
-   FORWARD;
+OVERLAY PROCEDURE INIT_LOAD;
 
 (* INITIALIZE MCPU finds out if the MCPU is ready for communications
 (* with the host desktop computer. *)
@@ -298,8 +297,6 @@ FOR I := 1 TO MAX_AXES DO
 END;   (* procedure INIT STUFF *)
 
 (* INIT LOAD initializes and loads all of the one-time ANIMAL info. *)
-
-PROCEDURE INIT_LOAD;
 
 BEGIN   (* INIT LOAD *)
 
