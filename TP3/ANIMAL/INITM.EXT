@@ -42,7 +42,7 @@ BEGIN
 
    OUTCMD ('W');       (* Wake up... *)
 
-   INITX (E.M);        (* Init primary MCPU axes *)
+                       (* Init primary MCPU axes *)
 
    FOR I := 1 TO MAX_AXES DO
        IF (AA [I].M.MOTORNO MOD 2) = 1
@@ -60,7 +60,7 @@ BEGIN
 
    OUTCMD ('W');       (* Wake up... *)
 
-   INITX (A.M);        (* Init secondary MCPU axes *)
+                       (* Init secondary MCPU axes *)
 
    FOR I := 1 TO MAX_AXES DO
        IF (AA [I].M.MOTORNO MOD 2) = 0

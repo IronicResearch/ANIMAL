@@ -1,16 +1,10 @@
-CONST MAX_AXES = 8;
-
-VAR I : INTEGER;
-    AA : ARRAY [1..MAX_AXES] OF AXIS_TABLE;
-
-TYPE CHAR2 = ARRAY [1..2] OF CHAR;
 
 (* PUT_AXIS_ARRAY puts individual axis data into the master axis array. *)
 
 PROCEDURE PUT_AXIS_ARRAY;
 
 BEGIN
-
+{
    AA [ 1] := X;
    AA [ 2] := Y;
    AA [ 3] := Z;
@@ -19,7 +13,7 @@ BEGIN
    AA [ 6] := U;
    AA [ 7] := L;
    AA [ 8] := P;
-
+}
 END;
 
 (* GET AXIS ARRAY gets individual axis data out of the master axis array.*)
@@ -27,7 +21,7 @@ END;
 PROCEDURE GET_AXIS_ARRAY;
 
 BEGIN
-
+{
    X := AA [ 1];
    Y := AA [ 2];
    Z := AA [ 3];
@@ -36,7 +30,7 @@ BEGIN
    U := AA [ 6];
    L := AA [ 7];
    P := AA [ 8];
-
+}
 END;
 
 (* ANY AXIS determines if any of the ANIMAL axes is specified to run. *)

@@ -111,16 +111,12 @@ UNTIL NAME_OK OR SAVE_OK;
 IF SAVE_OK
    THEN BEGIN
 
-   WRITE (UNITSFILE, X.K);
-   WRITE (UNITSFILE, Y.K);
-   WRITE (UNITSFILE, Z.K);
-   WRITE (UNITSFILE, F.K);
-   WRITE (UNITSFILE, R.K);
-   WRITE (UNITSFILE, U.K);
-   WRITE (UNITSFILE, L.K);
-   WRITE (UNITSFILE, P.K);
+   {$I-}
+   FOR I := 1 TO MAX_AXES DO
+       WRITE (UNITSFILE, AA[I].K);
 
    CLOSE (UNITSFILE);
+   {$I+}
    WRITELN ('File saving completed');
    WRITELN;
 
@@ -171,16 +167,12 @@ UNTIL NAME_OK OR LOAD_OK;
 IF LOAD_OK
    THEN BEGIN
 
-   READ (UNITSFILE, X.K);
-   READ (UNITSFILE, Y.K);
-   READ (UNITSFILE, Z.K);
-   READ (UNITSFILE, F.K);
-   READ (UNITSFILE, R.K);
-   READ (UNITSFILE, U.K);
-   READ (UNITSFILE, L.K);
-   READ (UNITSFILE, P.K);
+   {$I-}
+   FOR I := 1 TO MAX_AXES DO
+       READ (UNITSFILE, AA[I].K);
 
    CLOSE (UNITSFILE);
+   {$I+}
    WRITELN ('File loading completed');
    WRITELN;
 
@@ -201,20 +193,8 @@ REPEAT
    WRITELN ('AXIS':10, 'SCALE FACTOR':20, 'USER UNITS':20);
    WRITELN;
 
-   IF PRIMARY
-      THEN BEGIN
-           SCALE (X);
-           SCALE (Y);
-           SCALE (Z);
-           SCALE (R);
-           END
-
-      ELSE BEGIN
-           SCALE (F);
-           SCALE (U);
-           SCALE (L);
-           SCALE (P);
-           END;
+   FOR I := 1 TO MAX_AXES DO
+       SCALE (AA[I]);
 
    WRITELN;
    WRITELN ('User Units Conversion Selections:');

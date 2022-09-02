@@ -11,7 +11,7 @@
 
 (* Alternative Increment operation uses single key strokes per move. *)
 
-PROCEDURE OVERUN (VAR XAXISNO, YAXISNO : CHAR);
+OVERLAY PROCEDURE OVERUN (VAR XAXISNO, YAXISNO : CHAR);
 
 LABEL START, EXIT, INCR;
 

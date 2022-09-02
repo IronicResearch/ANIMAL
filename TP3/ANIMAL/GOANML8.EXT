@@ -674,9 +674,9 @@ BEGIN
    {IF EXPOSURE_TIME < STD_EXP_TIME
       THEN EXPOSURE_TIME := STD_EXP_TIME;}
 
-   E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
-   E.M.ACCELST := FALSE;
-   INITM (E.M);
+   AA[EE].M.SPEED := ROUND (EXPOSURE_TIME * 100);
+   AA[EE].M.ACCELST := FALSE;
+   INITM (AA[EE].M);
 
 END;
 
@@ -698,13 +698,13 @@ BEGIN
       THEN SHUTTER_STAT := 'OPEN'
       ELSE SHUTTER_STAT := 'CLOSED';
 
-   IF E.M.DIR = REV
+   IF AA[EE].M.DIR = REV
       THEN DIRECTION_STAT := 'REV'
       ELSE DIRECTION_STAT := 'FWD';
-{
-   GETCOUNT (XC.C);
-   RECONVERT (XC.C.COUNT, XC.K.KSCALE, SHUTTER_ANGLE);
-}
+
+   GETCOUNT (AA[VV].C);
+   RECONVERT (AA[VV].C.COUNT, AA[VV].K.KSCALE, SHUTTER_ANGLE);
+
    WRITELN ('Camera Selection Menu:');
    WRITELN;
    WRITELN ('   E : Exposure Time Interval        |', EXPOSURE_TIME:10:2);
@@ -731,10 +731,10 @@ BEGIN
                  WRITE ('amera Count = ');
                  RDLNINT (EXPOSURE_COUNT);
                  IF EXPOSURE_COUNT < 0
-                    THEN E.M.DIR := REV
-                    ELSE E.M.DIR := FWD;
-                 E.M.STEPCNT := ABS (EXPOSURE_COUNT);
-                 RUNM (E.M);
+                    THEN AA[EE].M.DIR := REV
+                    ELSE AA[EE].M.DIR := FWD;
+                 AA[EE].M.STEPCNT := ABS (EXPOSURE_COUNT);
+                 RUNM (AA[EE].M);
                  TOTAL_COUNT := TOTAL_COUNT + EXPOSURE_COUNT;
                  END;
 
@@ -742,10 +742,10 @@ BEGIN
                  WRITE ('dvance Count = ');
                  RDLNINT (ADVANCE_COUNT);
                  IF ADVANCE_COUNT < 0
-                    THEN A.M.DIR := REV
-                    ELSE A.M.DIR := FWD;
-                 A.M.STEPCNT := ABS (ADVANCE_COUNT);
-                 RUNM (A.M);
+                    THEN AA[EE].M.DIR := REV
+                    ELSE AA[EE].M.DIR := FWD;
+                 AA[EE].M.STEPCNT := ABS (ADVANCE_COUNT);
+                 RUNM (AA[EE].M);
                  TOTAL_COUNT := TOTAL_COUNT + ADVANCE_COUNT;
                  END;
 
@@ -753,14 +753,14 @@ BEGIN
                  WRITE ('xposure Time = ');
                  RDLNREAL (EXPOSURE_TIME);
 
-                 E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
-                 E.M.ACCELST := FALSE;
-                 INITM (E.M);
+                 AA[EE].M.SPEED := ROUND (EXPOSURE_TIME * 100);
+                 AA[EE].M.ACCELST := FALSE;
+                 INITM (AA[EE].M);
                  END;
 
            'S' : BEGIN
                  WRITE ('hutter...');
-                 HOMEM (E.M);
+                 HOMEM (AA[EE].M);
                  ROTOSCOPING := NOT ROTOSCOPING;
                  IF ROTOSCOPING
                     THEN WRITELN ('Open')
@@ -827,8 +827,8 @@ BEGIN
                  RDCON (ANSWER);
                  WRITELN;
                  IF ANSWER = 'R'
-                    THEN E.M.DIR := REV
-                    ELSE E.M.DIR := FWD;
+                    THEN AA[EE].M.DIR := REV
+                    ELSE AA[EE].M.DIR := FWD;
                  END;
 
            'T' : BEGIN
@@ -1628,7 +1628,7 @@ BEGIN
       FRAME_COUNT := FRAME_COUNT + FRAME_STEP;
 
       IF EXPOSURE
-         THEN IF E.M.DIR = FWD
+         THEN IF AA[EE].M.DIR = FWD
                  THEN TOTAL_COUNT := TOTAL_COUNT + FRAME_STEP
                  ELSE TOTAL_COUNT := TOTAL_COUNT - FRAME_STEP;
 
@@ -1677,7 +1677,7 @@ BEGIN
 
    CLRSCRN;
    UPDATE_EM_ALL;
-   IF E.M.DIR = FWD
+   IF AA[EE].M.DIR = FWD
       THEN TOTAL_COUNT := TOTAL_COUNT + FRAME_COUNT
       ELSE TOTAL_COUNT := TOTAL_COUNT - FRAME_COUNT;
    FRAME_COUNT := PRESET_COUNT;
@@ -1772,7 +1772,7 @@ BEGIN
               END; (* IF axes ok to increment *)
 
       FRAME_COUNT := FRAME_COUNT + FRAME_STEP;
-      IF E.M.DIR = FWD
+      IF AA[EE].M.DIR = FWD
          THEN TOTAL_COUNT := TOTAL_COUNT + FRAME_STEP
          ELSE TOTAL_COUNT := TOTAL_COUNT - FRAME_STEP;
 
@@ -2146,9 +2146,9 @@ BEGIN
    FOR I := 1 TO MAX_AXES DO
        AA [I].P.SPEC := AA [I].SPEC;
 
-   E.P.START_PT := PRESET_COUNT;
-   E.P.END_PT := EXPOSURE_TIME;
-   E.P.INCR_PT := FRAME_STEP;
+   AA[EE].P.START_PT := PRESET_COUNT;
+   AA[EE].P.END_PT := EXPOSURE_TIME;
+   AA[EE].P.INCR_PT := FRAME_STEP;
 
 REPEAT
 
@@ -2180,7 +2180,7 @@ UNTIL NAME_OK OR SAVE_OK;
 IF SAVE_OK
    THEN BEGIN
 
-   WRITE (SEQFILE, E.P);
+   WRITE (SEQFILE, AA[EE].P);
 
    FOR I := 1 TO MAX_AXES DO
        IF NOT AA [I].P.MULTI
@@ -2241,7 +2241,7 @@ UNTIL NAME_OK OR LOAD_OK;
 IF LOAD_OK
    THEN BEGIN
 
-   READ (SEQFILE, E.P);
+   READ (SEQFILE, AA[EE].P);
 
    FOR I := 1 TO MAX_AXES DO
        BEGIN
@@ -2262,14 +2262,14 @@ IF LOAD_OK
    FOR I := 1 TO MAX_AXES DO
        AA [I].SPEC := AA [I].P.SPEC;
 
-   PRESET_COUNT := ROUND (E.P.START_PT);
+   PRESET_COUNT := ROUND (AA[EE].P.START_PT);
    FRAME_COUNT := PRESET_COUNT;
-   EXPOSURE_TIME := E.P.END_PT;
-   FRAME_STEP := ROUND (E.P.INCR_PT);
+   EXPOSURE_TIME := AA[EE].P.END_PT;
+   FRAME_STEP := ROUND (AA[EE].P.INCR_PT);
 
-   E.M.ACCELST := FALSE;
-   E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
-   INITM (E.M);
+   AA[EE].M.ACCELST := FALSE;
+   AA[EE].M.SPEED := ROUND (EXPOSURE_TIME * 100);
+   INITM (AA[EE].M);
    WAITOVER;
 
    END;  (* IF loading ok *)

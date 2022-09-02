@@ -42,18 +42,18 @@ PROCEDURE ASSIGN_AXES;
 
 BEGIN
 
-   E.M.MOTORNO := 11;
-   A.M.MOTORNO := 12;
+   AA[EE].M.MOTORNO := 11;
+   AA[VV].M.MOTORNO := 12;
 
-   X.M.MOTORNO := 1;
-   Y.M.MOTORNO := 3;
-   Z.M.MOTORNO := 5;
-   F.M.MOTORNO := 7;
-   R.M.MOTORNO := 9;
+   AA[XX].M.MOTORNO := 1;
+   AA[YY].M.MOTORNO := 3;
+   AA[ZZ].M.MOTORNO := 5;
+   AA[FF].M.MOTORNO := 7;
+   AA[RR].M.MOTORNO := 9;
 
-   U.M.MOTORNO := 2;
-   L.M.MOTORNO := 4;
-   P.M.MOTORNO := 6;
+   AA[UU].M.MOTORNO := 2;
+   AA[LL].M.MOTORNO := 4;
+   AA[PP].M.MOTORNO := 6;
 
 END;   (* procedure ASSIGN AXES *)
 
@@ -63,16 +63,16 @@ PROCEDURE NAME_AXES;
 
 BEGIN
 
-   X.ID := 'X';
-   Y.ID := 'Y';
-   Z.ID := 'Z';
-   F.ID := 'F';
-   R.ID := 'R';
-   U.ID := 'U';
-   L.ID := 'L';
-   P.ID := 'P';
-   E.ID := 'E';
-   A.ID := 'A';
+   AA[XX].ID := 'XX';
+   AA[YY].ID := 'YY';
+   AA[ZZ].ID := 'ZZ';
+   AA[FF].ID := 'FF';
+   AA[RR].ID := 'RR';
+   AA[UU].ID := 'UU';
+   AA[LL].ID := 'LL';
+   AA[PP].ID := 'PP';
+   AA[EE].ID := 'EE';
+   AA[VV].ID := 'VV';
 
 END;
 
@@ -194,10 +194,12 @@ BEGIN
 
    IF LOAD_OK
       THEN BEGIN
+         {$I-}
            FOR I := 1 TO MAX_AXES DO
                READ (SPEEDFILE, AA[I].R);
 
            CLOSE (SPEEDFILE);
+         {$I+}
            END;  (* IF loading ok *)
 
 END;
@@ -226,10 +228,12 @@ BEGIN
 
    IF LOAD_OK
       THEN BEGIN
+         {$I-}
            FOR I := 1 TO MAX_AXES DO
                READ (UNITSFILE, AA[I].K);
 
            CLOSE (UNITSFILE);
+         {$I+}
            END;  (* IF loading ok *)
 
 END;
@@ -273,14 +277,6 @@ FOLLOW_FOCUS := FALSE;
 FOCAL_LENGTH := 50.0;
 FOCUS_REF := 1000.0;
 ZERO_FOCUS := 52.786;
-
-E.M.ACCELST := FALSE;
-E.M.SPEED := 0;
-E.M.DIR := FWD;
-
-A.M.ACCELST := FALSE;
-A.M.SPEED := 0;
-A.M.DIR := FWD;
 
 FOR I := 1 TO MAX_AXES DO
     AA [I].SPEC := FALSE;

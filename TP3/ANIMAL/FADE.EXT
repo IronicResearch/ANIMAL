@@ -55,13 +55,13 @@ BEGIN
 
            EXPOSURE_TIME := STD_EXP_TIME;
            SHUTTER_ANGLE := 0.0;
-{
-           CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
-           GETCOUNT (XA.C);
-           XA.M.STEPCNT := STEPS - XA.C.COUNT;
-           PREPM (XA.M);
-           RUNM (XA.M);
-}
+
+           CONVERT (SHUTTER_ANGLE, AA[VV].K.KSCALE, STEPS);
+           GETCOUNT (AA[VV].C);
+           AA[VV].M.STEPCNT := STEPS - AA[VV].C.COUNT;
+           PREPM (AA[VV].M);
+           RUNM (AA[VV].M);
+
            WRITELN ('Closing Variable Shutter...');
            WRITELN;
            END         (* Fade In *)
@@ -72,13 +72,13 @@ BEGIN
 
            EXPOSURE_TIME := MAX_EXP;
            SHUTTER_ANGLE := MAX_ANGLE;
-{
-           CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
-           GETCOUNT (XA.C);
-           XA.M.STEPCNT := STEPS - XA.C.COUNT;
-           PREPM (XA.M);
-           RUNM (XA.M);
-}
+
+           CONVERT (SHUTTER_ANGLE, AA[VV].K.KSCALE, STEPS);
+           GETCOUNT (AA[VV].C);
+           AA[VV].M.STEPCNT := STEPS - AA[VV].C.COUNT;
+           PREPM (AA[VV].M);
+           RUNM (AA[VV].M);
+
            WRITELN ('Opening Variable Shutter...');
            WRITELN;
            END;        (* Fade Out *)
@@ -106,13 +106,13 @@ BEGIN
                            FADE_SHTR := FALSE;
                            FADE_EXP := TRUE;
                            END;
-{
-                   CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
-                   GETCOUNT (XA.C);
-                   XA.M.STEPCNT := STEPS - XA.C.COUNT;
-                   PREPM (XA.M);
-                   RUNM (XA.M);
-}
+
+                   CONVERT (SHUTTER_ANGLE, AA[VV].K.KSCALE, STEPS);
+                   GETCOUNT (AA[VV].C);
+                   AA[VV].M.STEPCNT := STEPS - AA[VV].C.COUNT;
+                   PREPM (AA[VV].M);
+                   RUNM (AA[VV].M);
+
                    WRITELN ('Fading In Variable Shutter...');
                    WRITELN;
                    WAITOVER;
@@ -152,13 +152,13 @@ BEGIN
                             FADE_SHTR := FALSE;
                             FADE := FALSE;
                             END;
-{
-                    CONVERT (SHUTTER_ANGLE, XA.K.KSCALE, STEPS);
-                    GETCOUNT (XA.C);
-                    XA.M.STEPCNT := STEPS - XA.C.COUNT;
-                    PREPM (XA.M);
-                    RUNM (XA.M);
-}
+
+                    CONVERT (SHUTTER_ANGLE, AA[VV].K.KSCALE, STEPS);
+                    GETCOUNT (AA[VV].C);
+                    AA[VV].M.STEPCNT := STEPS - AA[VV].C.COUNT;
+                    PREPM (AA[VV].M);
+                    RUNM (AA[VV].M);
+
                     WRITELN ('Fading Out Variable Shutter...');
                     WRITELN;
                     WAITOVER;

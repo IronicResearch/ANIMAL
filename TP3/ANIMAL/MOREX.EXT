@@ -179,7 +179,7 @@ REPEAT
         'M' : VALID_RESPONSE := TRUE;
         'S' : VALID_RESPONSE := TRUE;
         'E' : VALID_RESPONSE := TRUE;
-        'R' : VALID_RESPONSE := FALSE;
+        'R' : VALID_RESPONSE := TRUE; (* FALSE; *)
         'N' : VALID_RESPONSE := FALSE;
         ELSE  VALID_RESPONSE := FALSE;
         END;
@@ -237,7 +237,7 @@ BEGIN
    OUTCMD ('D');         (* Camera exposure *)
 
    OUTCMD ('M');         (* Camera Exposure axis *)
-   BYTE_L := CHR (E.M.MOTORNO);
+   BYTE_L := CHR (AA[EE].M.MOTORNO);
    OUTSIO (BYTE_L);
 
    OUTCMD ('N');         (* Number of exposures *)
@@ -252,7 +252,7 @@ BEGIN
    OUTSIO (BYTE_L);
    OUTSIO (BYTE_H);
 
-   IF E.M.DIR = REV      (* Forward/Reverse *)
+   IF AA[EE].M.DIR = REV      (* Forward/Reverse *)
       THEN OUTCMD ('R')
       ELSE OUTCMD ('F');
 

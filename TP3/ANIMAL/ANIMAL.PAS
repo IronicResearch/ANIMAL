@@ -1,4 +1,7 @@
 
+{$C+}   (* Ctrl-C console break enable *)
+{$U+}   (* Ctrl-C runtime break enable *)
+
 (* ANIMAL program for Extended X,Y,Z,R,F,U,L,P MCPU axes *)
 (* Copyright 1985 Dave Milici and JK Camera Engineering *)
 
@@ -160,7 +163,7 @@ TYPE AXIS = RECORD
 
      AXIS_TABLE = RECORD
           SPEC : BOOLEAN;
-          ID : CHAR;
+          ID : ARRAY [1..2] OF CHAR;
           M : AXIS;
           P : PARAMETER_TABLE;
           I : ARRAY [1..10] OF PARAMETER_TABLE;
@@ -207,7 +210,7 @@ VAR CH : CHAR;
     ROTOSCOPING : BOOLEAN;
     PLAT_STAT : BOOLEAN;
     FOLLOW_FOCUS : BOOLEAN;
-
+{
     X : AXIS_TABLE;       (* X Compound *)
     Y : AXIS_TABLE;       (* Y Compound *)
     Z : AXIS_TABLE;       (* Z Camera Carriage *)
@@ -220,43 +223,25 @@ VAR CH : CHAR;
     E : AXIS_TABLE;       (* ANICAM Exposure with Advance *)
     A : AXIS_TABLE;       (* ANICAM Advance Only *)
     Q : AXIS_TABLE;       (* ANICAM Torque Motors *)
-
-{
-    O_SIZE : REAL;              (* object field size *)
-    I_SIZE : REAL;              (* image size *)
-
-    FF : REAL;                  (* lens focal length *)
-    M : REAL;                   (* magnification *)
-    O : REAL;                   (* object distance *)
-    I : REAL;                   (* image distance *)
-
-    d_O : REAL;                 (* delta object distance *)
-    d_I : REAL;                 (* delta image ditance *)
-    d_Z : REAL;                 (* delta Z axis distance *)
-    d_F : REAL;                 (* delta F axis distance *)
-
-    dd_Z : INTEGER;             (* delta Z axis error adjustment *)
-    dd_F : INTEGER;             (* delta F axis error adjustment *)
-    d_FF : REAL;                (* delta F' axis distance *)
-
-    O_SIZE_REF : REAL;          (* 6-field reference object size *)
-    I_SIZE_REF : REAL;          (* 6-field reference image size *)
-    M_REF : REAL;               (* 6-field reference magnification *)
-    O_REF : REAL;               (* 6-field reference object distance *)
-    I_REF : REAL;               (* 6-field reference image distance *)
-
-    FILMSIZE   : INTEGER;       (* film format (mm) *)
-    FOCALENGTH : REAL;          (* lens focal length (mm) *)
-
-    Z_OFFSET : INTEGER;         (* Z axis offset from 0 position *)
-    F_OFFSET : INTEGER;         (* F axis offset from 0 position *)
-
-    Z_COMPUTE : INTEGER;        (* Z axis computed focus position *)
-    F_COMPUTE : INTEGER;        (* F axis computed focus position *)
-
-    Z_ADJUST : INTEGER;         (* Z axis focus positiom adjustment *)
-    F_ADJUST : INTEGER;         (* F axis focus positiom adjustment *)
 }
+
+CONST   XX = 1;
+        YY = 2;
+        ZZ = 3;
+        FF = 4;
+        RR = 5;
+        UU = 6;
+        LL = 7;
+        PP = 8;
+        EE = 9;
+        VV = 10;
+
+CONST MAX_AXES = 10;
+
+VAR I : INTEGER;
+    AA : ARRAY [1..MAX_AXES] OF AXIS_TABLE;
+
+TYPE CHAR2 = ARRAY [1..2] OF CHAR;
 
 {$I SIO86.LIB}
 {$I TERM.LIB}
@@ -268,8 +253,8 @@ VAR CH : CHAR;
 {$I MOREX.EXT}
 {$I WAITOVER.EXT}
 
-{$I FADE.EXT}
 {$I CONVERT.EXT}
+{$I FADE.EXT}
 {$I STATUS.EXT}
 {$I UPDATE.EXT}
 

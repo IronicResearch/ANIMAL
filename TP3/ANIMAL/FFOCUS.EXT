@@ -277,14 +277,14 @@ END;      (* procedure GO FOLLOW FOCUS *)
 
 BEGIN     (* procedure FOLLOW FOCUS ADJUSTMENT *)
 
-FN := CHR (F.M.MOTORNO);
-ZN := CHR (Z.M.MOTORNO);
+FN := CHR (AA[FF].M.MOTORNO);
+ZN := CHR (AA[ZZ].M.MOTORNO);
 
-FM := F.M;
-ZM := Z.M;
+FM := AA[FF].M;
+ZM := AA[ZZ].M;
 
-FC := F.C;
-ZC := Z.C;
+FC := AA[FF].C;
+ZC := AA[ZZ].C;
 
 CLRSCRN;
 
@@ -312,14 +312,14 @@ IF ANSWER = 'Y'
         WRITELN;
         IF ANSWER = 'Y'
            THEN GO_FOLLOW_FOCUS;
-        F.K.KSCALE := FF_SCALE;
-        F.K.UNITS := 'Focus Distance';
+        AA[FF].K.KSCALE := FF_SCALE;
+        AA[FF].K.UNITS := 'Focus Distance';
         END
 
    ELSE BEGIN
         FOLLOW_FOCUS := FALSE;
-        F.K.KSCALE := 1.0;
-        F.K.UNITS := 'Steps';
+        AA[FF].K.KSCALE := 1.0;
+        AA[FF].K.UNITS := 'Steps';
         END;
 
 END;     (* procedure FOLLOW FOCUS ADJUSTMENT *)

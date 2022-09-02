@@ -118,16 +118,12 @@ UNTIL NAME_OK OR SAVE_OK;
 IF SAVE_OK
    THEN BEGIN
 
-   WRITE (SPEEDFILE, X.R);
-   WRITE (SPEEDFILE, Y.R);
-   WRITE (SPEEDFILE, Z.R);
-   WRITE (SPEEDFILE, F.R);
-   WRITE (SPEEDFILE, R.R);
-   WRITE (SPEEDFILE, L.R);
-   WRITE (SPEEDFILE, U.R);
-   WRITE (SPEEDFILE, P.R);
+   {$I-}
+   FOR I := 1 TO MAX_AXES DO
+       WRITE (SPEEDFILE, AA[I].R);
 
    CLOSE (SPEEDFILE);
+   {$I+}
    WRITELN ('File saving completed');
    WRITELN;
 
@@ -178,16 +174,12 @@ UNTIL NAME_OK OR LOAD_OK;
 IF LOAD_OK
    THEN BEGIN
 
-   READ (SPEEDFILE, X.R);
-   READ (SPEEDFILE, Y.R);
-   READ (SPEEDFILE, Z.R);
-   READ (SPEEDFILE, F.R);
-   READ (SPEEDFILE, R.R);
-   READ (SPEEDFILE, U.R);
-   READ (SPEEDFILE, L.R);
-   READ (SPEEDFILE, P.R);
+   {$I-}
+   FOR I := 1 TO MAX_AXES DO
+       READ (SPEEDFILE, AA[I].R);
 
    CLOSE (SPEEDFILE);
+   {$I+}
    WRITELN ('File loading complete');
    WRITELN;
 
@@ -212,20 +204,8 @@ REPEAT
    WRITELN ('LOW SPEED':15, 'HIGH SPEED':15, 'RAMP COUNT':15);
    WRITELN;
 
-   IF PRIMARY
-      THEN BEGIN
-           SPEED (X);
-           SPEED (Y);
-           SPEED (Z);
-           SPEED (F);
-           SPEED (R);
-           END
-
-      ELSE BEGIN
-           SPEED (U);
-           SPEED (L);
-           SPEED (P);
-           END;
+   FOR I := 1 TO MAX_AXES DO
+       SPEED (AA[I]);
 
    WRITELN;
    WRITELN ('Running Speed Profile Selections:');

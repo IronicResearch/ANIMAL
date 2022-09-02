@@ -1,6 +1,8 @@
 
 (* Overide operations for direct MCPU control. *)
 
+OVERLAY PROCEDURE OVERIDE;
+
 (* GO CAMERA runs Camera directly in the overide mode. *)
 
 PROCEDURE GO_CAMERA;
@@ -45,10 +47,10 @@ BEGIN
                  RDLNINT (CAMERA_COUNT);
 
                  IF CAMERA_COUNT < 0
-                    THEN E.M.DIR := REV
-                    ELSE E.M.DIR := FWD;
-                 E.M.STEPCNT := ABS (CAMERA_COUNT);
-                 RUNM (E.M);
+                    THEN AA[EE].M.DIR := REV
+                    ELSE AA[EE].M.DIR := FWD;
+                 AA[EE].M.STEPCNT := ABS (CAMERA_COUNT);
+                 RUNM (AA[EE].M);
                  TOTAL_COUNT := TOTAL_COUNT + CAMERA_COUNT;
                  END;
 
@@ -56,9 +58,9 @@ BEGIN
                  WRITE ('xposure Time = ');
                  RDLNREAL (EXPOSURE_TIME);
 
-                 E.M.SPEED := ROUND (EXPOSURE_TIME * 100);
-                 E.M.ACCELST := FALSE;
-                 INITM (E.M);
+                 AA[EE].M.SPEED := ROUND (EXPOSURE_TIME * 100);
+                 AA[EE].M.ACCELST := FALSE;
+                 INITM (AA[EE].M);
                  END;
 
            'A' : BEGIN
@@ -66,16 +68,16 @@ BEGIN
                  RDLNINT (ADVANCE_COUNT);
 
                  IF ADVANCE_COUNT < 0
-                    THEN A.M.DIR := REV
-                    ELSE A.M.DIR := FWD;
-                 A.M.STEPCNT := ABS (ADVANCE_COUNT);
-                 RUNM (A.M);
+                    THEN AA[EE].M.DIR := REV
+                    ELSE AA[EE].M.DIR := FWD;
+                 AA[EE].M.STEPCNT := ABS (ADVANCE_COUNT);
+                 RUNM (AA[EE].M);
                  TOTAL_COUNT := TOTAL_COUNT + ADVANCE_COUNT;
                  END;
 
            'S' : BEGIN
                  WRITE ('hutter...');
-                 HOMEM (E.M);
+                 HOMEM (AA[EE].M);
                  ROTOSCOPING := NOT ROTOSCOPING;
                  IF ROTOSCOPING
                     THEN WRITELN ('Open')
@@ -90,27 +92,27 @@ BEGIN
                  RDCON (ANSWER);
                  WRITELN;
                  IF ANSWER = 'I'
-                    THEN E.M.LOWSPD := 0
-                    ELSE E.M.LOWSPD := -1;
+                    THEN AA[EE].M.LOWSPD := 0
+                    ELSE AA[EE].M.LOWSPD := -1;
 
                  WRITE ('Linear or Logarithmic? (L/G) ');
                  RDCON (ANSWER);
                  WRITELN;
                  WRITELN;
                  IF ANSWER = 'L'
-                    THEN E.M.HIGHSPD := 0
-                    ELSE E.M.HIGHSPD := -1;
+                    THEN AA[EE].M.HIGHSPD := 0
+                    ELSE AA[EE].M.HIGHSPD := -1;
 
-                 E.M.RAMPCNT := ABS (FADE_COUNT);
-                 E.M.ACCELST := TRUE;
-                 INITM (E.M);
+                 AA[EE].M.RAMPCNT := ABS (FADE_COUNT);
+                 AA[EE].M.ACCELST := TRUE;
+                 INITM (AA[EE].M);
                  WAITOVER;
                  IF FADE_COUNT < 0
-                    THEN E.M.DIR := REV
-                    ELSE E.M.DIR := FWD;
-                 E.M.STEPCNT := ABS (FADE_COUNT);
-                 RUNM (E.M);
-                 E.M.ACCELST := FALSE;
+                    THEN AA[EE].M.DIR := REV
+                    ELSE AA[EE].M.DIR := FWD;
+                 AA[EE].M.STEPCNT := ABS (FADE_COUNT);
+                 RUNM (AA[EE].M);
+                 AA[EE].M.ACCELST := FALSE;
                  TOTAL_COUNT := TOTAL_COUNT + FADE_COUNT;
                  END;
 
@@ -422,14 +424,14 @@ GET_AXIS_ARRAY;
 WRITE   ('AXIS #   DESCRIPTION  ', 'POSITION':8, 'STAT':5, '   |   ');
 WRITELN ('AXIS #   DESCRIPTION  ', 'POSITION':8, 'STAT':5);
 WRITELN;
-WRITE   ('X  #  1 : Pan        :', X.C.COUNT:8:0, X.C.STAT:5, '   |   ');
-WRITELN ('F  #  7 : F Focus    :', F.C.COUNT:8:0, F.C.STAT:5);
-WRITE   ('Y  #  3 : Tilt       :', Y.C.COUNT:8:0, Y.C.STAT:5, '   |   ');
-WRITELN ('U  #  2 : Upper Pegs :', U.C.COUNT:8:0, U.C.STAT:5);
-WRITE   ('Z  #  5 : Zoom       :', Z.C.COUNT:8:0, Z.C.STAT:5, '   |   ');
-WRITELN ('L  #  4 : Lower Pegs :', L.C.COUNT:8:0, L.C.STAT:5);
-WRITE   ('R  #  9 : Rotate     :', R.C.COUNT:8:0, R.C.STAT:5, '   |   ');
-WRITELN ('P  #  6 : Platen     :', P.C.COUNT:8:0, P.C.STAT:5);
+WRITE   ('X  #  1 : Pan        :', AA[XX].C.COUNT:8:0, AA[XX].C.STAT:5, '   |   ');
+WRITELN ('F  #  7 : F Focus    :', AA[FF].C.COUNT:8:0, AA[FF].C.STAT:5);
+WRITE   ('Y  #  3 : Tilt       :', AA[YY].C.COUNT:8:0, AA[YY].C.STAT:5, '   |   ');
+WRITELN ('U  #  2 : Upper Pegs :', AA[UU].C.COUNT:8:0, AA[UU].C.STAT:5);
+WRITE   ('Z  #  5 : Zoom       :', AA[ZZ].C.COUNT:8:0, AA[ZZ].C.STAT:5, '   |   ');
+WRITELN ('L  #  4 : Lower Pegs :', AA[LL].C.COUNT:8:0, AA[LL].C.STAT:5);
+WRITE   ('R  #  9 : Rotate     :', AA[RR].C.COUNT:8:0, AA[RR].C.STAT:5, '   |   ');
+WRITELN ('P  #  6 : Platen     :', AA[PP].C.COUNT:8:0, AA[PP].C.STAT:5);
 
 WRITELN;
 WRITELN;
@@ -438,8 +440,6 @@ END;
 
 (* OVERIDE allows the user to overide the MCPU axes outside of the regular
 (* ANIMAL program sequences. *)
-
-PROCEDURE OVERIDE;
 
 VAR CH : CHAR;
     ANSWER : CHAR;
@@ -614,7 +614,7 @@ BEGIN
                  WRITELN;
                  CASE_AXIS (ID, OK, AX);
                  IF OK THEN XAXISNO := CHR (AX.M.MOTORNO)
-                       ELSE XAXISNO := CHR ( X.M.MOTORNO);
+                       ELSE XAXISNO := CHR (AA[XX].M.MOTORNO);
 
                  WRITE ('Use  Up/Down  Arrow Keys for which Axis?  ');
                  RDCON (ID [1]);
@@ -622,7 +622,7 @@ BEGIN
                  WRITELN;
                  CASE_AXIS (ID, OK, AX);
                  IF OK THEN YAXISNO := CHR (AX.M.MOTORNO)
-                       ELSE YAXISNO := CHR ( Y.M.MOTORNO);
+                       ELSE YAXISNO := CHR (AA[YY].M.MOTORNO);
 
                  WRITELN;
                  WRITELN ('Press RETURN when through jogging');
