@@ -225,17 +225,6 @@ VAR CH : CHAR;
     Q : AXIS_TABLE;       (* ANICAM Torque Motors *)
 }
 
-CONST   XX = 1;
-        YY = 2;
-        ZZ = 3;
-        FF = 4;
-        RR = 5;
-        UU = 6;
-        LL = 7;
-        PP = 8;
-        EE = 9;
-        VV = 10;
-
 CONST MAX_AXES = 10;
 
 VAR I : INTEGER;
@@ -243,13 +232,24 @@ VAR I : INTEGER;
 
 TYPE CHAR2 = ARRAY [1..2] OF CHAR;
 
+CONST   XX = 1;                 (* X axis index, Pan *)
+        YY = 2;                 (* Y axis index, Tilt *)
+        ZZ = 3;                 (* Z axis index, Zoom *)
+        FF = 4;                 (* F axis index, Follow Focus *)
+        RR = 5;                 (* R axis index, Rotation *)
+        UU = 6;                 (* U axis index, Upper Pegbars *)
+        LL = 7;                 (* L axis index, Lower Pegbars *)
+        PP = 8;                 (* P axis index, Platen Lifter *)
+        EE = 9;                 (* E axis index, Exposure Advance *)
+        VV = 10;                (* V axis index, Variable Shutter *)
+
 {$I SIO86.LIB}
 {$I TERM.LIB}
 {$I COMM.LIB}
 (* {$I MCPUM.LIB}               (* 16-bit step counts *)
 {$I MCPUX.LIB}                  (* 24-bit step counts *)
 
-{$I BLOCKM.EXT}
+{$I AXISX.EXT}                 (* axis array indexing *)
 {$I MOREX.EXT}
 {$I WAITOVER.EXT}
 
