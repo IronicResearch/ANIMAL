@@ -1,4 +1,3 @@
-
 (* SIO86 contains the serial interface input/output routines
 (* directly in 8086 machine code. *)
 
@@ -8,7 +7,7 @@
 (*    INS 8250 asychrounous communications element (aka UART)
 (*    9600 baud, 8 bits/word, 1 stop bit, no parity. *)
 
-PROCEDURE RESETSIO;
+PROCEDURE RESETSIO86;
 
 BEGIN
 
@@ -43,7 +42,7 @@ END;
 
 (* INSIOST gets the receiver status from the serial interface. *)
 
-PROCEDURE INSIOST (VAR STATUS : BOOLEAN);
+PROCEDURE INSIOST86 (VAR STATUS : BOOLEAN);
 
 VAR STBF : CHAR;
 
@@ -64,7 +63,7 @@ END;
 
 (* INSIO inputs a byte from the serial interface. *)
 
-PROCEDURE INSIO (VAR BYTE : CHAR);
+PROCEDURE INSIO86 (VAR BYTE : CHAR);
 
 VAR CHBF : CHAR;
 
@@ -87,7 +86,7 @@ END;
 
 (* OUTSIO outputs a byte to the serial interface. *)
 
-PROCEDURE OUTSIO (VAR BYTE : CHAR);
+PROCEDURE OUTSIO86 (VAR BYTE : CHAR);
 
 VAR CHBF : CHAR;
 

@@ -249,7 +249,7 @@ CONST   XX = 1;                 (* X axis index, Pan *)
 (* {$I MCPUM.LIB}               (* 16-bit step counts *)
 {$I MCPUX.LIB}                  (* 24-bit step counts *)
 
-{$I AXISX.EXT}                 (* axis array indexing *)
+{$I AXISX.EXT}                  (* axis array indexing *)
 {$I MOREX.EXT}
 {$I WAITOVER.EXT}
 

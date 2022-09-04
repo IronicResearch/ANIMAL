@@ -24,7 +24,8 @@ BEGIN
               WRITELN ('MCPU Not Ready Yet');
               WRITELN ('--Either Reset MCPU');
               WRITE   ('--Or Abort Program Here (^C) > ');
-              READ (TRM, CH);
+              RDCON (CH);
+              MCPU_INSTALLED := ((CH = 'Y') OR (CH = ^M));
               WRITELN;
               WRITELN;
               OUTCMD ('Z');

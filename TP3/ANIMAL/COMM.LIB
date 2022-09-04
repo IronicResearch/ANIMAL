@@ -1,3 +1,54 @@
+VAR MCPU_INSTALLED : BOOLEAN;    (* MCPU serial I/O connection? *)
+
+(* RESETSIO resets the serial interface: *)
+
+PROCEDURE RESETSIO;
+
+BEGIN
+
+   MCPU_INSTALLED := TRUE;
+
+   INSIOST86(MCPU_INSTALLED);
+   
+   IF MCPU_INSTALLED
+      THEN RESETSIO86;
+      
+END;
+
+(* INSIOST gets the receiver status from the serial interface. *)
+
+PROCEDURE INSIOST (VAR STATUS : BOOLEAN);
+
+BEGIN
+
+   IF MCPU_INSTALLED
+      THEN INSIOST86(STATUS)
+      ELSE STATUS := TRUE;
+
+END;
+
+(* INSIO inputs a byte from the serial interface. *)
+
+PROCEDURE INSIO (VAR BYTE : CHAR);
+
+BEGIN
+
+   IF MCPU_INSTALLED
+      THEN INSIO86(BYTE)
+      ELSE BYTE := 'R';
+
+END;
+
+(* OUTSIO outputs a byte to the serial interface. *)
+
+PROCEDURE OUTSIO (VAR BYTE : CHAR);
+
+BEGIN
+
+   IF MCPU_INSTALLED
+      THEN OUTSIO86(BYTE);
+
+END;
 
 (* OUTPUT COMMAND outputs an ASCII character command to the MCPU. *)
 (* Note: OUTCMD passes by value, whereas OUTSIO passes by reference. *)
