@@ -33,3 +33,42 @@ https://youtu.be/hZHaedQFkSQ
 ANIMAL Live-Action curvilinear moves on Korty stand with Sony Pro video camera at Pacific Video Resources, San Francisco, 1991.
 
 https://youtu.be/zpPCAsAT_iw
+
+**Build Notes**
+
+ANIMAL was originally developed for TurboPascal 2/3 with simple console I/O and single-letter command menus.
+This early version TurboPascal compiler was just called `TURBO.EXE` and loaded the main `ANIMAL.PAS` file 
+into a text-based IDE for compiling a .COM executable plus TP3-optional overlay binaries.
+
+```
+cd TP3
+cd ANIMAL
+turbo ANIMAL.PAS
+dir ANIMAL.COM
+```
+
+For 20-axis custom animation stand rig at Animationsakademien:
+
+```
+cd ANISAK
+turbo ANIMAL.PAS
+dir ANIMAL.COM
+```
+
+Later versions of TurboPascal 5/6/7 used text-based UI called TurboVision and linked with TPU library components (TurboPascal Units).
+Need to unpack TPU ZIPs for TurboVision library, TurboProfessional Toolkit libraries, and default TurboPascal Unit libraries to link.
+Refer to `TPMAKE.BAT` batch file for TP7 command line options.
+
+```
+cd TPU
+unzip *.ZIP
+cd ..
+cd TP7
+cd TVANI
+tpc TVANI47.PAS /U..\..\TPU /L /$G+ /M
+dir TVANI47.EXE
+```
+
+Macintosh versions of TurboPascal and CodeWarrior used primitive Mac Toolbox dialogs and menus which predominated each ANIMAL port.
+So only the most basic MCPU motion control commands for ANIMAL stop-motion sequences were ever implemented. (Primarily intended as
+a learning experience for Macintosh programming.) AFAIR, either IDE loaded the main ANIMAL.PAS file and built via Command-B menu.
