@@ -69,6 +69,25 @@ tpc TVANI47.PAS /U..\..\TPU /L /$G+ /M
 dir TVANI47.EXE
 ```
 
+For optical printer sequencer, with options for console I/O vs TurboVision interface in `SWITCHES.INC`:
+
+```
+cd TVSEQ
+tpc TESTSEQ.PAS /U..\..\TPU /L /$G+ /M
+dir TESTSEQ.EXE
+```
+
+```
+copy TESTSEQ.PAS TVSEQ.PAS
+echo "{$DEFINE USE_TURBO_VISION}" >> SWITCHES.INC
+edit SWITCHES.INC
+tpc TVSEQ.PAS /U..\..\TPU /L /$G+ /M
+dir TVSEQ.EXE
+```
+
+
+
 Macintosh versions of TurboPascal and CodeWarrior used primitive Mac Toolbox dialogs and menus which predominated each ANIMAL port.
 So only the most basic MCPU motion control commands for ANIMAL stop-motion sequences were ever implemented. (Primarily intended as
 a learning experience for Macintosh programming.) AFAIR, either IDE loaded the main ANIMAL.PAS file and built via Command-B menu.
+Refer to `MAC/TP` or `MAC/CW` folders for TurboPascal or CodeWarrior projects respectively, which only work on Classic Mac OS. 
