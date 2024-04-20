@@ -78,7 +78,6 @@ dir TESTSEQ.EXE
 ```
 
 ```
-copy TESTSEQ.PAS TVSEQ.PAS
 echo "{$DEFINE USE_TURBO_VISION}" >> SWITCHES.INC
 edit SWITCHES.INC
 tpc TVSEQ.PAS /U..\..\TPU /L /$G+ /M
